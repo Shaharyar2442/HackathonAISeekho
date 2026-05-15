@@ -31,10 +31,10 @@
             android:name="flutterEmbedding"
             android:value="2" />
         
-        <!-- Placeholder Google Maps API Key to prevent crash -->
+        <!-- Google Maps API Key injected via local.properties -->
         <meta-data 
             android:name="com.google.android.geo.API_KEY" 
-            android:value="YOUR_API_KEY"/>
+            android:value="${mapsApiKey}"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
