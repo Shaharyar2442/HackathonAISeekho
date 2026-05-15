@@ -1,0 +1,162 @@
+{
+    "LOCATIONS": ["G-10", "G-11", "F-8", "I-8", "Blue Area"],
+    "LOCATION_KEYWORDS": ["G-10", "G-11", "F-8", "I-8", "Blue Area"],
+    "CRISIS_TEMPLATES": {
+        "flood": [
+            "G-10 mein pani bhar gaya hai, galiyan doob rahi hain",
+            "G-11 mein baarish ki wajah se bari tabahi, pani bhar gaya",
+            "Nala overflow ho gaya G-10 ke qareeb, emergency hai",
+            "F-8 mein streets flooded hain, gadiyan phaas gayi hain",
+            "Heavy rain ne G-11 ko dooba diya, log phans gaye hain",
+            "I-8 mein pani ka bahao tez hai, road band ho gayi",
+            "Blue Area ke basement mein pani ghus gaya hai, bara nuqsan",
+            "G-10 sector 4 mein flood alert, logon ko nikaala ja raha hai",
+            "G-11 mein nala barh gaya, rescue team bulaao phoran",
+            "Baarish itni zyada thi ke F-8 main road pe gadiyan doob gayin"
+        ],
+        "accident": [
+            "F-8 mein bara accident hua hai, kai log zakhmi hain",
+            "Blue Area mein truck aur car ki takkar, immediately ambulance chahiye",
+            "I-8 highway pe bada crash hua hai, traffic jam lag gaya",
+            "G-10 intersection pe motorcycle accident, emergency help chahiye",
+            "G-11 mein do gadiyan tabreed ho gayin, log phans gaye hain",
+            "F-8 Markaz ke bahar accident, seriously injured hain log",
+            "Blue Area mein motorcycle crash, driver unconscious hai",
+            "I-8 mein ek truck palat gaya, rasta band ho gaya",
+            "G-10 markaz ke paas car crash, fire bhi lag gayi",
+            "G-11 mein bus accident hua hai, bohot log zakhmi hain"
+        ],
+        "outage": [
+            "Blue Area mein bijli nahi hai, 3 ghante se andhere mein hain",
+            "G-10 mein electricity nahi hai, generators bhi kharab ho gaye",
+            "G-11 mein light nahi, businesses band ho gaye hain",
+            "F-8 mein WAPDA ne bijli kaat di, pata nahi kab aayegi",
+            "I-8 industrial area mein power outage, factories band hain",
+            "Blue Area main grid fault hai, puri area blackout mein hai",
+            "G-10 mein bijli gaye 5 ghante ho gaye, koi sun nahi raha",
+            "G-11 mein electricity nahi, hospital generators pe chal raha",
+            "F-8 mein light nahi, thandi raat mein logon ko takleef ho rahi",
+            "I-8 mein transformer jal gaya, puri sector dark hai"
+        ],
+        "fire": [
+            "G-11 mein aag lagi hai, fire brigade bulaao phoran",
+            "F-8 mein building mein aag, log trapped hain andar",
+            "Blue Area mein office mein fire, bohot dhuan nikal raha",
+            "I-8 factory mein aag lagi hai, workers bahar nahi nikal sake",
+            "G-10 market mein badi aag lagi hai, kai dukanen jal gayin",
+            "G-11 residential area mein fire, families phans gayi hain",
+            "F-8 restaurant mein kitchen fire, immediately help chahiye",
+            "Blue Area mein bank mein aag, security log bahar bhag gaye",
+            "I-8 mein godam mein fire lagi, control nahi ho rahi",
+            "G-10 mein petrol pump ke paas aag, bohot khatarnak situation"
+        ],
+        "traffic": [
+            "road block hai I-8 mein, ghanton se traffic jam laga hai",
+            "G-10 main road pe jam hai, koi nahi nikal pa raha",
+            "Blue Area mein rasta band hai, VIP movement ki wajah se",
+            "G-11 mein traffic jam, accidents ki wajah se rasta block hai",
+            "F-8 se Blue Area tak pura rasta band hai, alternative route lo",
+            "I-8 flyover pe traffic jam, ghante lag rahe hain guzarne mein",
+            "G-10 intersection pe rasta band, police ne barikade lagaye hain",
+            "G-11 mein halka traffic jam hai, construction chal rahi hai",
+            "F-8 chowk pe thodi der se jam hai, manage ho jayega",
+            "Blue Area mein procession hai, traffic divert ho rahi hai"
+        ]
+    },
+    "SEVERITY_WORDS": {
+        "5": ["emergency", "phans gaye", "immediately", "bara", "bohot bada", "trapped", "unconscious"],
+        "4": ["seriously", "bari tabahi", "fire brigade", "rescue", "zakhmi", "critical"],
+        "3": ["jam laga hai", "help chahiye", "ghante se", "band ho gaye", "kharab"],
+        "2": ["thodi der", "halka", "manage ho jayega", "thanda", "chota"],
+        "1": ["thodi", "halki", "minor", "sab theek", "bas thoda"]
+    },
+    "CRISIS_KEYWORDS": {
+        "flood": ["pani bhar", "pani", "flood", "baarish", "doob", "nala", "overflow"],
+        "accident": ["accident", "crash", "tabreed", "takkar", "palat", "zakhmi"],
+        "outage": ["bijli", "electricity", "light nahi", "power", "blackout", "andhere", "transformer"],
+        "fire": ["aag", "fire", "dhuan", "jal gaya", "jal gayi"],
+        "traffic": ["jam", "block", "rasta band", "traffic", "barikade", "divert"]
+    },
+    "SEVERITY_UP": [
+        "bara", "bari", "bohot", "emergency", "immediately",
+        "phans gaye", "phoran", "trapped", "unconscious", "seriously",
+        "critical", "tabahi", "bada"
+    ],
+    "SEVERITY_DOWN": [
+        "thoda", "thodi", "halka", "halki", "minor", "manage",
+        "sab theek", "chota"
+    ],
+    "SCENARIO_TEXTS": {
+        "A": [
+            ["G-10 mein thodi baarish ho rahi hai", 1],
+            ["G-10 mein halki si nami hai sadkon pe", 1],
+            ["G-10 mein pani thoda ikatha ho gaya hai", 2],
+            ["G-10 streets pe pani bhar raha hai dheere dheere", 2],
+            ["G-10 mein pani bhar gaya hai, traffic mushkil hai", 3],
+            ["G-10 mein baarish ke baad pani ka jam ho gaya", 3],
+            ["G-10 mein nala overflow ho gaya, bohot pani aa gaya", 4],
+            ["G-10 mein gadiyan doob rahi hain, bari mushkil hai", 4],
+            ["G-10 emergency! Pani ne sab kuch doob diya, log phans gaye hain", 5],
+            ["G-10 mein badi tabahi, flood ne ghar doob diye, immediately rescue chahiye", 5]
+        ],
+        "B": [
+            ["F-8 mein bohot bada accident hua hai, kai log unconscious hain, emergency!", 5],
+            ["F-8 pe bari car crash, ambulance immediately chahiye, log trapped hain", 5],
+            ["F-8 mein seriously injured hain log, rescue team aa rahi hai", 4],
+            ["F-8 accident ke zakhmi hospital pohunch gaye hain, situation critical", 4],
+            ["F-8 pe accident ki wajah se traffic jam lag gaya hai", 3],
+            ["F-8 scene clear ho raha hai, police help kar rahi hai", 3],
+            ["F-8 mein accident area ko manage kiya ja raha hai", 3],
+            ["F-8 mein traffic halka ho raha hai, accident side pe hai", 2],
+            ["F-8 accident thoda manage ho gaya, ek lane khul gayi", 2],
+            ["F-8 pe situation normal ho rahi hai, minor delay hai", 1]
+        ],
+        "C": [
+            ["Blue Area mein bijli nahi hai, offices band ho rahe hain", 3],
+            ["Blue Area mein power outage hai, generators chal rahe hain", 3],
+            ["Blue Area electricity nahi, business affected ho rahe hain", 3],
+            ["Blue Area mein light nahi, WAPDA ko call karo", 3],
+            ["Blue Area blackout jari hai, koi update nahi WAPDA ki taraf se", 3],
+            ["Blue Area mein thoda hua, ek sector ki bijli wapas aayi", 2],
+            ["Blue Area mein phir se bijli gayi, transformer problem hai", 3],
+            ["Blue Area power outage continue hai, UPS pe kaam chal raha", 3],
+            ["Blue Area mein electricity abhi bhi nahi, kitni der lagegi", 3],
+            ["Blue Area mein bijli nahi, raat ko mushkil hogi logon ko", 3]
+        ]
+    },
+    "SCENARIO_META": {
+        "A": {
+            "id": "A",
+            "name": "G-10 Flooding",
+            "description": "Escalating flood emergency in G-10 sector",
+            "location": "G-10",
+            "crisis_type": "flood",
+            "expected_severities": [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+        },
+        "B": {
+            "id": "B",
+            "name": "F-8 Accident",
+            "description": "Sudden spike road accident in F-8 Markaz",
+            "location": "F-8",
+            "crisis_type": "accident",
+            "expected_severities": [5, 5, 4, 4, 3, 3, 3, 2, 2, 1]
+        },
+        "C": {
+            "id": "C",
+            "name": "Blue Area Power Outage",
+            "description": "Stable mid-severity power outage in Blue Area",
+            "location": "Blue Area",
+            "crisis_type": "outage",
+            "expected_severities": [3, 3, 3, 3, 3, 2, 3, 3, 3, 3]
+        }
+    },
+    "RAW_TEST_INPUTS": [
+        "G-10 mein pani bhar gaya hai, log bahar nahi nikal sakte",
+        "F-8 mein bara accident hua hai, immediately ambulance chahiye",
+        "Blue Area mein bijli nahi hai, 4 ghante ho gaye",
+        "road block hai I-8 mein, traffic jam hai ghanton se",
+        "G-11 mein aag lagi hai, fire brigade bulaao phoran",
+        "thodi si baarish G-10 mein",
+        "G-11 mein bari tabahi, sab kuch doob gaya, emergency!"
+    ]
+}

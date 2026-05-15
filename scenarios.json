@@ -1,0 +1,266 @@
+[
+    {
+        "scenario_id": "A",
+        "name": "G-10 Flooding",
+        "zone": "G-10",
+        "description": "Escalating flood emergency",
+        "signals": [
+            {
+                "text": "G-10 mein thodi baarish ho rahi hai",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 1,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.484803"
+            },
+            {
+                "text": "G-10 mein halki si nami hai sadkon pe",
+                "location": "G-10",
+                "crisis_type": "Traffic",
+                "severity": 1,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.484893"
+            },
+            {
+                "text": "G-10 mein pani thoda ikatha ho gaya hai",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 2,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.484939"
+            },
+            {
+                "text": "G-10 streets pe pani bhar raha hai dheere dheere",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 2,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.484977"
+            },
+            {
+                "text": "G-10 mein pani bhar gaya hai, traffic mushkil hai",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485006"
+            },
+            {
+                "text": "G-10 mein baarish ke baad pani ka jam ho gaya",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485034"
+            },
+            {
+                "text": "G-10 mein nala overflow ho gaya, bohot pani aa gaya",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 4,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485064"
+            },
+            {
+                "text": "G-10 mein gadiyan doob rahi hain, bari mushkil hai",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 4,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485094"
+            },
+            {
+                "text": "G-10 emergency! Pani ne sab kuch doob diya, log phans gaye hain",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 5,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485125"
+            },
+            {
+                "text": "G-10 mein badi tabahi, flood ne ghar doob diye, immediately rescue chahiye",
+                "location": "G-10",
+                "crisis_type": "Flood",
+                "severity": 5,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485155"
+            }
+        ]
+    },
+    {
+        "scenario_id": "B",
+        "name": "F-8 Accident",
+        "zone": "F-8",
+        "description": "Sudden spike road accident",
+        "signals": [
+            {
+                "text": "F-8 mein bohot bada accident hua hai, kai log unconscious hain, emergency!",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 5,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485193"
+            },
+            {
+                "text": "F-8 pe bari car crash, ambulance immediately chahiye, log trapped hain",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 5,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485226"
+            },
+            {
+                "text": "F-8 mein seriously injured hain log, rescue team aa rahi hai",
+                "location": "F-8",
+                "crisis_type": "Traffic",
+                "severity": 4,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485261"
+            },
+            {
+                "text": "F-8 accident ke zakhmi hospital pohunch gaye hain, situation critical",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 4,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485291"
+            },
+            {
+                "text": "F-8 pe accident ki wajah se traffic jam lag gaya hai",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485320"
+            },
+            {
+                "text": "F-8 scene clear ho raha hai, police help kar rahi hai",
+                "location": "F-8",
+                "crisis_type": "Traffic",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485354"
+            },
+            {
+                "text": "F-8 mein accident area ko manage kiya ja raha hai",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485392"
+            },
+            {
+                "text": "F-8 mein traffic halka ho raha hai, accident side pe hai",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 2,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485445"
+            },
+            {
+                "text": "F-8 accident thoda manage ho gaya, ek lane khul gayi",
+                "location": "F-8",
+                "crisis_type": "Accident",
+                "severity": 2,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485477"
+            },
+            {
+                "text": "F-8 pe situation normal ho rahi hai, minor delay hai",
+                "location": "F-8",
+                "crisis_type": "Traffic",
+                "severity": 1,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485509"
+            }
+        ]
+    },
+    {
+        "scenario_id": "C",
+        "name": "Blue Area power outage",
+        "zone": "Blue Area",
+        "description": "Stable power outage",
+        "signals": [
+            {
+                "text": "Blue Area mein bijli nahi hai, offices band ho rahe hain",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485542"
+            },
+            {
+                "text": "Blue Area mein power outage hai, generators chal rahe hain",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485572"
+            },
+            {
+                "text": "Blue Area electricity nahi, business affected ho rahe hain",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485601"
+            },
+            {
+                "text": "Blue Area mein light nahi, WAPDA ko call karo",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485637"
+            },
+            {
+                "text": "Blue Area blackout jari hai, koi update nahi WAPDA ki taraf se",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485667"
+            },
+            {
+                "text": "Blue Area mein thoda hua, ek sector ki bijli wapas aayi",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 2,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485697"
+            },
+            {
+                "text": "Blue Area mein phir se bijli gayi, transformer problem hai",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485726"
+            },
+            {
+                "text": "Blue Area power outage continue hai, UPS pe kaam chal raha",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485756"
+            },
+            {
+                "text": "Blue Area mein electricity abhi bhi nahi, kitni der lagegi",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485785"
+            },
+            {
+                "text": "Blue Area mein bijli nahi, raat ko mushkil hogi logon ko",
+                "location": "Blue Area",
+                "crisis_type": "Power Outage",
+                "severity": 3,
+                "source": "user_report",
+                "timestamp": "2026-05-15T21:39:48.485813"
+            }
+        ]
+    }
+]
