@@ -146,10 +146,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.7)),
               ),
               const SizedBox(height: 32),
+              Text(
+                'Description',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _reportController,
                 decoration: InputDecoration(
-                  labelText: 'Description',
+                  hintText: 'Enter incident details...',
                   alignLabelWithHint: true,
                   filled: true,
                   fillColor: inputFillColor,
@@ -157,17 +162,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(16),
                     borderSide: BorderSide.none,
                   ),
-                  floatingLabelBehavior: FloatingLabelBehavior.auto,
                 ),
                 maxLines: 4,
               ),
               const SizedBox(height: 20),
+              Text(
+                'Zone',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
               LayoutBuilder(
                 builder: (context, constraints) {
                   return DropdownMenu<String>(
                     width: constraints.maxWidth,
                     initialSelection: selectedZone,
-                    label: const Text('Zone'),
                     inputDecorationTheme: inputDecorationTheme,
                     menuStyle: MenuStyle(
                       shape: MaterialStateProperty.all(
@@ -180,12 +188,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
               ),
               const SizedBox(height: 20),
+              Text(
+                'Crisis Type',
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 8),
               LayoutBuilder(
                 builder: (context, constraints) {
                   return DropdownMenu<String>(
                     width: constraints.maxWidth,
                     initialSelection: selectedType,
-                    label: const Text('Crisis Type'),
                     inputDecorationTheme: inputDecorationTheme,
                     menuStyle: MenuStyle(
                       shape: MaterialStateProperty.all(
