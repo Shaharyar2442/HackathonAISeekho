@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # Google Cloud / Firestore configuration
     GCP_PROJECT_ID: str = "ciro-hackathon-2026"
     FIRESTORE_PROJECT_ID: str = "ciro-hackathon-2026"
+    FIRESTORE_DATABASE_ID: str = "hackathon"
 
     # Application environment
     ENVIRONMENT: str = "development"

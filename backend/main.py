@@ -19,7 +19,8 @@ from datetime import datetime
 # Add parent directory to path so we can import shared.models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI
+import asyncio
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from shared.models import (
@@ -30,7 +31,9 @@ from shared.models import (
     AgentMessage,
 )
 from antigravity_pipeline import CIROPipeline
+from action_simulator import ActionSimulator
 from config import get_settings
+from db import get_db
 
 # ------------------------------------------------------------------ #
 # FastAPI Application
@@ -132,13 +135,16 @@ async def detect_crisis(request: DetectRequest):
     result = await pipeline.execute(request.signals)
 
     # Phase 2: Save agent_trace to Firestore here
-    # db = get_db()
-    # db.collection("agent_traces").add({
-    #     "trace_id": str(uuid.uuid4()),
-    #     "timestamp": datetime.now().isoformat(),
-    #     "agent_trace": result["agent_trace"],
-    #     "crisis": result["detected_crisis"],
-    # })
+    try:
+        db = get_db()
+        db.collection("agent_traces").add({
+            "trace_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "agent_trace": result["agent_trace"],
+            "crisis": result["detected_crisis"],
+        })
+    except Exception as e:
+        print(f"WARNING: Could not save trace to Firestore (GCP not configured?): {e}")
 
     return DetectResponse(**result)
 
@@ -172,21 +178,62 @@ async def get_actions(request: ActionsRequest):
 
 @app.post("/api/simulate")
 async def simulate_action(request: SimulateRequest):
-    """Simulate execution of a response action.
+    """Simulate execution of a response action using ActionSimulator."""
+    simulator = ActionSimulator()
     
-    In Phase 3, this will call action_simulator.py with real
-    Firestore-backed before/after state.
-    """
-    result = SimulationResult(
-        action_id=request.action_id,
-        before_state={"congestion_percent": 85, "status": "critical"},
-        after_state={"congestion_percent": 35, "status": "managed"},
-        execution_log=[
-            f"Initiated simulation for action {request.action_id}",
-            f"Action type: {request.action_type}",
-            "Computed before/after state delta",
-            "Simulation completed successfully",
-        ],
-    )
+    if "Traffic Reroute" in request.action_type:
+        result = await simulator.simulate_traffic_reroute("Affected Area", "Alternate Route")
+    elif "Emergency Dispatch" in request.action_type:
+        result = await simulator.simulate_emergency_dispatch("Affected Area")
+    elif "Citizen Alert" in request.action_type:
+        result = await simulator.simulate_citizen_alert("Affected Area")
+    else:
+        # Fallback simulation
+        result = await simulator.simulate_traffic_reroute("Unknown Location", "Default Route")
+        
+    # Override action_id with request's action_id
+    result.action_id = request.action_id
 
     return {"simulation_result": result.model_dump()}
+
+
+# ------------------------------------------------------------------ #
+# Phase 3: WebSockets & Logs
+# ------------------------------------------------------------------ #
+
+@app.websocket("/ws/signals")
+async def websocket_signals(websocket: WebSocket):
+    """WebSocket endpoint that broadcasts a mock live signal every 5 seconds.
+    Used for dashboard live feeds.
+    """
+    await websocket.accept()
+    try:
+        while True:
+            mock_signal = {
+                "id": str(uuid.uuid4())[:8],
+                "text": f"Live incoming signal stream: {datetime.now().strftime('%H:%M:%S')}",
+                "source": "live_feed",
+                "timestamp": datetime.now().isoformat()
+            }
+            await websocket.send_json(mock_signal)
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        print("WebSocket client disconnected")
+
+
+@app.get("/api/crisis/{id}/logs")
+async def get_crisis_logs(id: str):
+    """Get the AgentTrace logs for a given trace_id from Firestore."""
+    try:
+        db = get_db()
+        # Query Firestore for agent_traces where trace_id == id
+        docs = db.collection("agent_traces").where("trace_id", "==", id).get()
+        if docs:
+            doc_data = docs[0].to_dict()
+            return {"trace_id": id, "agent_trace": doc_data.get("agent_trace", [])}
+        else:
+            return {"status": "error", "message": "Trace not found"}
+    except Exception as e:
+        print(f"Firestore read failed: {e}")
+        return {"status": "error", "message": f"Could not fetch logs (GCP error: {e})"}
+

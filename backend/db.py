@@ -28,5 +28,8 @@ def get_db() -> firestore.Client:
     global _db_client
     if _db_client is None:
         settings = get_settings()
-        _db_client = firestore.Client(project=settings.FIRESTORE_PROJECT_ID)
+        _db_client = firestore.Client(
+            project=settings.FIRESTORE_PROJECT_ID,
+            database=settings.FIRESTORE_DATABASE_ID
+        )
     return _db_client
