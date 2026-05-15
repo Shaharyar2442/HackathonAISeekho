@@ -128,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500)),
+        title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               Text(
                 'Report an Incident',
-                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
               Text(
@@ -148,7 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 32),
               Text(
                 'Description',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
               TextFormField(
@@ -168,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               Text(
                 'Zone',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
               LayoutBuilder(
@@ -190,7 +190,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               Text(
                 'Crisis Type',
-                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant),
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
               LayoutBuilder(
@@ -301,7 +301,7 @@ class ResponseScreen extends StatelessWidget {
     final int severity = (crisis['severity'] as num?)?.toInt() ?? 1;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Analysis Results')),
+      appBar: AppBar(title: Text('Analysis Results', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary))),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 8.0),
@@ -385,7 +385,7 @@ class ResponseScreen extends StatelessWidget {
               const SizedBox(height: 32),
               Text(
                 'Recommended Actions',
-                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 16),
               if (rawActions.isEmpty)
@@ -418,7 +418,7 @@ class ResponseScreen extends StatelessWidget {
                 child: ExpansionTile(
                   title: Text(
                     'View Agent Reasoning Trace',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
                   ),
                   leading: const Icon(Icons.memory),
                   children: [
