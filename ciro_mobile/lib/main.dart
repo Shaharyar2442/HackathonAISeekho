@@ -256,23 +256,20 @@ class MapScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
+    return const Scaffold(
+      /*
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        // Using a soft shadow so text is visible on the map background
-        title: const Text(
-          'Live Crisis Map',
-          style: TextStyle(shadows: [Shadow(color: Colors.black45, blurRadius: 4)]),
-        ),
+        title: const Text('Live Crisis Map'),
       ),
-      body: const GoogleMap(
-        myLocationButtonEnabled: true,
-        zoomControlsEnabled: false,
-        initialCameraPosition: CameraPosition(
-          target: LatLng(33.6844, 73.0479),
-          zoom: 12.0,
+      */
+      body: SafeArea(
+        child: GoogleMap(
+          myLocationButtonEnabled: true,
+          zoomControlsEnabled: false,
+          initialCameraPosition: CameraPosition(
+            target: LatLng(33.6844, 73.0479),
+            zoom: 12.0,
+          ),
         ),
       ),
     );
