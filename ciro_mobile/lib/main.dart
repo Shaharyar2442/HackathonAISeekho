@@ -37,10 +37,55 @@ class CIROApp extends StatelessWidget {
       ),
       initialRoute: '/',
       routes: {
-        '/': (context) => const HomeScreen(),
-        '/map': (context) => const MapScreen(),
+        '/': (context) => const MainScreen(),
         '/response': (context) => const ResponseScreen(),
       },
+    );
+  }
+}
+
+class MainScreen extends StatefulWidget {
+  const MainScreen({Key? key}) : super(key: key);
+
+  @override
+  State<MainScreen> createState() => _MainScreenState();
+}
+
+class _MainScreenState extends State<MainScreen> {
+  int _currentIndex = 0;
+
+  final List<Widget> _pages = const [
+    HomeScreen(),
+    MapScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: IndexedStack(
+        index: _currentIndex,
+        children: _pages,
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: 'Report Incident',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.map_outlined),
+            selectedIcon: Icon(Icons.map),
+            label: 'Live Map',
+          ),
+        ],
+      ),
     );
   }
 }
@@ -71,6 +116,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final inputFillColor = theme.colorScheme.onSurface.withOpacity(0.05);
+
+    final inputDecorationTheme = InputDecorationTheme(
+      filled: true,
+      fillColor: inputFillColor,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -108,36 +162,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 maxLines: 4,
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                value: selectedZone,
-                decoration: InputDecoration(
-                  labelText: 'Zone',
-                  filled: true,
-                  fillColor: inputFillColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                icon: const Icon(Icons.arrow_drop_down),
-                items: zones.map((zone) => DropdownMenuItem(value: zone, child: Text(zone))).toList(),
-                onChanged: (val) => setState(() => selectedZone = val),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return DropdownMenu<String>(
+                    width: constraints.maxWidth,
+                    initialSelection: selectedZone,
+                    label: const Text('Zone'),
+                    inputDecorationTheme: inputDecorationTheme,
+                    menuStyle: MenuStyle(
+                      shape: MaterialStateProperty.all(
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                    dropdownMenuEntries: zones.map((zone) => DropdownMenuEntry(value: zone, label: zone)).toList(),
+                    onSelected: (val) => setState(() => selectedZone = val),
+                  );
+                },
               ),
               const SizedBox(height: 20),
-              DropdownButtonFormField<String>(
-                value: selectedType,
-                decoration: InputDecoration(
-                  labelText: 'Crisis Type',
-                  filled: true,
-                  fillColor: inputFillColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-                icon: const Icon(Icons.arrow_drop_down),
-                items: types.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
-                onChanged: (val) => setState(() => selectedType = val),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return DropdownMenu<String>(
+                    width: constraints.maxWidth,
+                    initialSelection: selectedType,
+                    label: const Text('Crisis Type'),
+                    inputDecorationTheme: inputDecorationTheme,
+                    menuStyle: MenuStyle(
+                      shape: MaterialStateProperty.all(
+                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                    ),
+                    dropdownMenuEntries: types.map((type) => DropdownMenuEntry(value: type, label: type)).toList(),
+                    onSelected: (val) => setState(() => selectedType = val),
+                  );
+                },
               ),
               const SizedBox(height: 40),
               FilledButton.icon(
@@ -173,18 +231,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     : const Icon(Icons.analytics_outlined),
                 label: Text(_isLoading ? 'Analyzing...' : 'Analyze Crisis', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
-              const SizedBox(height: 12),
-              FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                onPressed: () {
-                  Navigator.pushNamed(context, '/map');
-                },
-                icon: const Icon(Icons.map_outlined),
-                label: const Text('View Live Map', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              ),
             ],
           ),
         ),
@@ -203,19 +249,14 @@ class MapScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: Theme.of(context).colorScheme.surface.withOpacity(0.9),
-            child: IconButton(
-              icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
+        // Using a soft shadow so text is visible on the map background
+        title: const Text(
+          'Live Crisis Map',
+          style: TextStyle(shadows: [Shadow(color: Colors.black45, blurRadius: 4)]),
         ),
       ),
       body: const GoogleMap(
-        myLocationButtonEnabled: false,
+        myLocationButtonEnabled: true,
         zoomControlsEnabled: false,
         initialCameraPosition: CameraPosition(
           target: LatLng(33.6844, 73.0479),
