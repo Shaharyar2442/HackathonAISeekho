@@ -1,0 +1,26 @@
+# CIRO Backend — Python Dependencies
+# ====================================
+# Install: pip install -r requirements.txt
+
+# Web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+
+# Data validation
+pydantic==2.9.0
+pydantic-settings==2.5.0
+
+# Google Gemini AI SDK (Phase 2: real agent calls)
+google-genai==1.14.0
+
+# Google Cloud Firestore
+google-cloud-firestore==2.19.0
+
+# Environment variable loading
+python-dotenv==1.0.1
+
+# WebSocket support (Phase 3)
+websockets==13.0
+
+# SSE streaming (Phase 4)
+sse-starlette==2.1.0
