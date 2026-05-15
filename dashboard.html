@@ -3,106 +3,335 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CIRO Crisis Intelligence Dashboard</title>
+    <title>CIRO | Crisis Intelligence & Response Orchestrator</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
         :root {
-            --bg-dark: #121212;
-            --panel-bg: #1E1E1E;
-            --text-light: #E0E0E0;
-            --text-muted: #9E9E9E;
-            --accent: #3498db;
-            --border-color: #333;
-            --red: #E74C3C;
-            --orange: #E67E22;
-            --yellow: #F1C40F;
-            --green: #2ECC71;
-            --map-default: #424242;
+            --bg-base: #0b0c10;
+            --panel-bg: rgba(22, 24, 29, 0.65);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.4);
+            
+            --critical: #ef4444;
+            --high: #f97316;
+            --medium: #eab308;
+            --low: #22c55e;
+            
+            --map-inactive: #1e293b;
+            --map-stroke: rgba(255, 255, 255, 0.1);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg-dark); color: var(--text-light); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: radial-gradient(circle at 50% 0%, #171131 0%, var(--bg-base) 70%);
+            color: var(--text-main); 
+            height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 
         /* Top Bar */
-        .topbar { background-color: #111; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
-        .topbar h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: 1px; color: var(--accent); }
-        .clock { font-size: 1rem; color: var(--text-muted); font-family: monospace; }
-        
+        .topbar { 
+            background: rgba(11, 12, 16, 0.85); 
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 16px 32px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid var(--panel-border);
+            z-index: 10;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        }
+        .logo { display: flex; align-items: center; gap: 14px; }
+        .logo-icon {
+            width: 36px; height: 36px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: 10px;
+            display: flex; justify-content: center; align-items: center;
+            box-shadow: 0 0 20px var(--accent-glow);
+            font-weight: 700; color: white; font-size: 1.2rem;
+        }
+        .topbar h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.5px; background: linear-gradient(to right, #ffffff, #cbd5e1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .clock-container { display: flex; align-items: center; gap: 15px; background: rgba(255,255,255,0.05); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.05); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--low); box-shadow: 0 0 12px var(--low); animation: pulse 2s infinite; }
+        .clock { font-size: 0.95rem; color: var(--text-main); font-family: 'JetBrains Mono', monospace; font-weight: 500; letter-spacing: 1px; }
+
+        @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+
         /* Error Banner */
-        #error-banner { display: none; background-color: var(--red); color: white; padding: 10px; text-align: center; font-weight: bold; }
+        #error-banner { display: none; background: linear-gradient(90deg, #b91c1c, #ef4444); color: white; padding: 12px; text-align: center; font-weight: 600; letter-spacing: 1px; font-size: 0.9rem; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3); z-index: 20; position: relative; }
 
         /* Layout Grid */
-        .dashboard-container { display: grid; grid-template-columns: 25% 45% 30%; flex: 1; overflow: hidden; }
-        .panel { padding: 20px; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; overflow-y: auto; }
-        .panel:last-child { border-right: none; }
-        .panel-title { font-size: 1.1rem; margin-bottom: 15px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; }
+        .dashboard-container { 
+            display: grid; 
+            grid-template-columns: 300px 1fr 400px; 
+            gap: 24px;
+            padding: 24px;
+            flex: 1; 
+            overflow: hidden; 
+        }
+
+        .panel { 
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            padding: 24px; 
+            display: flex; 
+            flex-direction: column; 
+            overflow-y: auto; 
+            box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+            position: relative;
+        }
+
+        .panel-title { 
+            font-size: 0.9rem; 
+            font-weight: 700;
+            color: var(--text-muted); 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px; 
+            margin-bottom: 20px; 
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .panel-title::before {
+            content: ''; display: block; width: 4px; height: 16px; border-radius: 4px; background: linear-gradient(to bottom, #3b82f6, #8b5cf6);
+        }
 
         /* Left Column: Signal Feed */
-        .signal-list { display: flex; flex-direction: column; gap: 10px; }
-        .signal-card { background-color: var(--panel-bg); padding: 12px; border-radius: 6px; border-left: 4px solid var(--accent); font-size: 0.9rem; animation: slideIn 0.3s ease; }
-        .signal-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.8rem; color: var(--text-muted); }
-        .badge { padding: 3px 6px; border-radius: 3px; font-weight: bold; color: #000; font-size: 0.75rem; }
-        .severity-1 { background-color: var(--yellow); }
-        .severity-2, .severity-3 { background-color: var(--orange); }
-        .severity-4, .severity-5 { background-color: var(--red); color: #fff; }
+        .signal-list { display: flex; flex-direction: column; gap: 14px; }
+        .signal-card { 
+            background: rgba(255, 255, 255, 0.02); 
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            padding: 16px; 
+            border-radius: 12px; 
+            font-size: 0.9rem; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .signal-card:hover { transform: translateX(6px); background: rgba(255, 255, 255, 0.05); border-color: rgba(255,255,255,0.1); }
+        .signal-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+        
+        .signal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .signal-time { font-size: 0.75rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        
+        .badge { padding: 4px 10px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .severity-1 { background: rgba(34, 197, 94, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+        .severity-2 { background: rgba(234, 179, 8, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.3); }
+        .severity-3 { background: rgba(249, 115, 22, 0.15); color: #fb923c; border: 1px solid rgba(251, 146, 60, 0.3); }
+        .severity-4, .severity-5 { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+
+        .signal-card.s-1::before { background: var(--low); box-shadow: 0 0 10px var(--low); }
+        .signal-card.s-2::before { background: var(--medium); box-shadow: 0 0 10px var(--medium); }
+        .signal-card.s-3::before { background: var(--high); box-shadow: 0 0 10px var(--high); }
+        .signal-card.s-4::before, .signal-card.s-5::before { background: var(--critical); box-shadow: 0 0 10px var(--critical); }
+
+        .signal-desc { font-weight: 500; color: #fff; margin-top: 4px; line-height: 1.4; }
+        .signal-loc { font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; }
+        .signal-loc::before { content: '📍'; font-size: 0.7rem; }
 
         @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
         /* Center Column: Map & Form */
-        .form-group { margin-bottom: 12px; }
-        .form-group label { display: block; margin-bottom: 5px; font-size: 0.85rem; color: var(--text-muted); }
-        .form-control { width: 100%; padding: 8px; background-color: #2C2C2C; border: 1px solid var(--border-color); color: white; border-radius: 4px; }
-        textarea.form-control { resize: vertical; height: 60px; }
-        .btn { background-color: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; transition: background 0.2s; }
-        .btn:hover { background-color: #2980b9; }
-        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .controls-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+        .form-group label { font-size: 0.85rem; color: #cbd5e1; font-weight: 500; letter-spacing: 0.5px; }
+        .form-control { 
+            width: 100%; padding: 14px 16px; 
+            background: rgba(0, 0, 0, 0.25); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+            color: white; 
+            border-radius: 10px; 
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2); background: rgba(0,0,0,0.4); }
+        textarea.form-control { resize: none; height: 90px; line-height: 1.5; }
         
-        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s linear infinite; display: none; }
+        select.form-control { appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 1rem center; background-size: 1em; cursor: pointer; }
+        select.form-control option { background: #1e1e1e; padding: 10px; }
+
+        .btn { 
+            background: linear-gradient(135deg, #2563eb, #3b82f6); 
+            color: white; 
+            border: none; 
+            padding: 16px 20px; 
+            border-radius: 10px; 
+            cursor: pointer; 
+            font-weight: 700; 
+            font-size: 1rem;
+            width: 100%; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 12px; 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn::after { content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%; background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent); transform: skewX(-20deg); transition: all 0.5s; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(37, 99, 235, 0.4); }
+        .btn:hover::after { left: 150%; }
+        .btn:active { transform: translateY(1px); box-shadow: 0 2px 10px rgba(37, 99, 235, 0.3); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite; display: none; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        .map-container { background-color: var(--panel-bg); border-radius: 8px; padding: 20px; margin-top: 20px; flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; }
-        svg { width: 100%; height: auto; max-height: 400px; }
-        .map-zone { fill: var(--map-default); stroke: #111; stroke-width: 2; cursor: pointer; transition: fill 0.3s; }
-        .map-zone:hover { opacity: 0.8; }
-        .map-label { fill: white; font-size: 14px; font-weight: bold; pointer-events: none; text-anchor: middle; dominant-baseline: middle; }
+        .map-wrapper { 
+            background: rgba(0, 0, 0, 0.3); 
+            border-radius: 16px; 
+            padding: 24px; 
+            margin-top: 24px; 
+            flex: 1; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative; 
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
+        }
+        svg.map { width: 100%; height: auto; max-height: 400px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.4)); }
+        .map-zone { 
+            fill: var(--map-inactive); 
+            stroke: rgba(255,255,255,0.15); 
+            stroke-width: 2.5; 
+            cursor: pointer; 
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+            rx: 8; ry: 8;
+        }
+        .map-zone:hover { stroke: #fff; stroke-width: 3.5; filter: brightness(1.3) drop-shadow(0 0 10px rgba(255,255,255,0.2)); }
+        .map-label { fill: #f1f5f9; font-size: 15px; font-weight: 700; pointer-events: none; text-anchor: middle; dominant-baseline: middle; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
 
-        .zone-info { margin-top: 15px; padding: 10px; background-color: #2C2C2C; border-radius: 6px; width: 100%; text-align: center; font-size: 0.9rem; }
+        .zone-info { 
+            margin-top: 24px; 
+            padding: 14px 24px; 
+            background: rgba(255,255,255,0.03); 
+            border-radius: 10px; 
+            width: 100%; 
+            text-align: center; 
+            font-size: 1rem; 
+            font-weight: 500;
+            color: var(--text-main);
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(5px);
+        }
 
         /* Right Column: Actions & Reasoning */
-        .action-card { background-color: var(--panel-bg); padding: 15px; border-radius: 6px; margin-bottom: 15px; border: 1px solid var(--border-color); }
-        .action-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .action-title { font-weight: bold; font-size: 1rem; }
-        .action-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px; }
-        .priority-P1 { background-color: var(--red); color: white; }
-        .priority-P2 { background-color: var(--orange); color: white; }
-        .priority-P3 { background-color: var(--green); color: white; }
+        .actions-header-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         
-        .reasoning-section { margin-top: 20px; background-color: #1A1A1A; padding: 15px; border-radius: 6px; border-left: 3px solid #9b59b6; }
-        .reasoning-step { margin-bottom: 8px; font-size: 0.85rem; display: flex; gap: 8px; line-height: 1.4; opacity: 0; }
-        .step-num { background-color: #333; color: white; width: 20px; height: 20px; display: inline-flex; justify-content: center; align-items: center; border-radius: 50%; font-size: 0.7rem; font-weight: bold; flex-shrink: 0; }
+        .action-card { 
+            background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.01)); 
+            padding: 18px; 
+            border-radius: 14px; 
+            margin-bottom: 16px; 
+            border: 1px solid rgba(255,255,255,0.08); 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .action-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.2); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
+        .action-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .action-title { font-weight: 700; font-size: 1.1rem; color: #fff; letter-spacing: 0.5px; }
+        .action-desc { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 18px; line-height: 1.6; }
         
-        .action-log { margin-top: 20px; font-size: 0.8rem; background-color: #111; padding: 10px; border-radius: 6px; flex: 1; overflow-y: auto; }
-        .log-entry { margin-bottom: 8px; border-bottom: 1px solid #333; padding-bottom: 8px; }
-        .log-time { color: var(--text-muted); font-family: monospace; }
-        .log-state { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75rem; margin-top: 4px; }
-        .state-before { background-color: rgba(231, 76, 60, 0.2); border: 1px solid var(--red); }
-        .state-after { background-color: rgba(46, 204, 113, 0.2); border: 1px solid var(--green); }
+        .priority-P1 { background: rgba(239, 68, 68, 0.15); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.4); }
+        .priority-P2 { background: rgba(249, 115, 22, 0.15); color: #fdba74; border: 1px solid rgba(249, 115, 22, 0.4); }
+        .priority-P3 { background: rgba(34, 197, 94, 0.15); color: #86efac; border: 1px solid rgba(34, 197, 94, 0.4); }
+        
+        .btn-sm { 
+            padding: 10px 18px; font-size: 0.85rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+            box-shadow: none; color: #fff; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; width: 100%;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .btn-sm:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.3); }
+
+        .reasoning-section { 
+            margin-top: 24px; 
+            background: linear-gradient(to bottom right, rgba(139, 92, 246, 0.1), rgba(0,0,0,0.2)); 
+            padding: 24px; 
+            border-radius: 16px; 
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            position: relative;
+        }
+        .reasoning-section::before {
+            content: ''; position: absolute; left: -1px; top: 15%; bottom: 15%; width: 3px; background: #8b5cf6; box-shadow: 0 0 12px #8b5cf6; border-radius: 3px;
+        }
+        .reasoning-title { font-size: 0.95rem; font-weight: 700; color: #c4b5fd; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .reasoning-step { 
+            margin-bottom: 16px; font-size: 0.9rem; display: flex; gap: 14px; line-height: 1.5; color: #e2e8f0; opacity: 0;
+            transform: translateY(10px);
+        }
+        .reasoning-step:last-child { margin-bottom: 0; }
+        .step-num { 
+            background: rgba(139, 92, 246, 0.15); color: #d8b4fe; width: 24px; height: 24px; 
+            display: flex; justify-content: center; align-items: center; border-radius: 50%; 
+            font-size: 0.8rem; font-weight: 700; flex-shrink: 0; border: 1px solid rgba(139, 92, 246, 0.4);
+            box-shadow: inset 0 0 10px rgba(139,92,246,0.2);
+        }
+        
+        .action-log { 
+            margin-top: 24px; font-size: 0.85rem; background: rgba(0,0,0,0.35); padding: 20px; 
+            border-radius: 16px; flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05);
+            box-shadow: inset 0 5px 20px rgba(0,0,0,0.2);
+        }
+        .log-entry { margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px dashed rgba(255,255,255,0.1); position: relative; animation: slideIn 0.3s ease; }
+        .log-entry:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .log-time { color: var(--accent); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; margin-bottom: 8px; font-weight: 500; }
+        
+        .log-state-container { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .log-state { padding: 10px 14px; border-radius: 8px; font-size: 0.85rem; display: flex; align-items: center; gap: 10px; font-weight: 500; }
+        .state-before { background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); color: #fca5a5; }
+        .state-after { background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2); color: #86efac; }
+        
+        .state-icon { font-weight: bold; font-size: 1rem; }
+
     </style>
 </head>
 <body>
 
-    <div id="error-banner">Error connecting to backend API!</div>
+    <div id="error-banner">Connection Error: Could not reach the backend API. Running in Local Simulation Mode.</div>
 
     <div class="topbar">
-        <h1>CIRO Crisis Intelligence Dashboard</h1>
-        <div class="clock" id="live-clock">00:00:00</div>
+        <div class="logo">
+            <div class="logo-icon">C</div>
+            <h1>CIRO DASHBOARD</h1>
+        </div>
+        <div class="clock-container">
+            <div class="status-dot"></div>
+            <div class="clock" id="live-clock">00:00:00</div>
+        </div>
     </div>
 
     <div class="dashboard-container">
         <!-- Left Panel: Signal Feed -->
         <div class="panel">
-            <div class="panel-title">Live Signal Feed</div>
+            <div class="panel-title">Live Intel Feed</div>
             <div class="signal-list" id="signal-feed">
-                <!-- Mock signals will be injected here initially -->
+                <!-- Mock signals will be injected here -->
             </div>
         </div>
 
@@ -111,195 +340,213 @@
             <div class="panel-title">Situation Analysis & Mapping</div>
             
             <div class="form-group">
-                <label>Crisis Report (Text)</label>
-                <textarea id="crisis-text" class="form-control" placeholder="E.g., G-10 mein pani bhar gaya hai gaariyan phans gayi hain"></textarea>
+                <label>Crisis Report Intelligence</label>
+                <textarea id="crisis-text" class="form-control" placeholder="E.g., G-10 mein pani bhar gaya hai gaariyan phans gayi hain..."></textarea>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <div class="form-group" style="flex: 1;">
-                    <label>Zone</label>
+            
+            <div class="controls-row">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Target Zone</label>
                     <select id="crisis-zone" class="form-control">
-                        <option value="G-10">G-10</option>
-                        <option value="G-11">G-11</option>
-                        <option value="F-8">F-8</option>
-                        <option value="I-8">I-8</option>
-                        <option value="Blue Area">Blue Area</option>
+                        <option value="G-10">Sector G-10</option>
+                        <option value="G-11">Sector G-11</option>
+                        <option value="F-8">Sector F-8</option>
+                        <option value="I-8">Sector I-8</option>
+                        <option value="Blue Area">Blue Area CBD</option>
                     </select>
                 </div>
-                <div class="form-group" style="flex: 1;">
-                    <label>Signal Type</label>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label>Classification</label>
                     <select id="crisis-type" class="form-control">
-                        <option value="flood">Flood</option>
-                        <option value="accident">Accident</option>
-                        <option value="outage">Power Outage</option>
-                        <option value="fire">Fire</option>
-                        <option value="traffic">Traffic</option>
+                        <option value="flood">Urban Flooding</option>
+                        <option value="accident">Severe Accident</option>
+                        <option value="outage">Power Infrastructure</option>
+                        <option value="fire">Fire Hazard</option>
+                        <option value="traffic">Traffic Gridlock</option>
                     </select>
                 </div>
             </div>
+            
             <button class="btn" id="analyze-btn" onclick="analyzeCrisis()">
                 <div class="spinner" id="analyze-spinner"></div>
-                Analyze Zone
+                Initialize AI Analysis
             </button>
 
-            <div class="map-container">
-                <svg viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Simple abstract map of Islamabad zones -->
-                    <rect id="zone-F-8" class="map-zone" x="150" y="50" width="120" height="80" onclick="highlightZone('F-8')" />
-                    <text class="map-label" x="210" y="90">F-8</text>
+            <div class="map-wrapper">
+                <svg class="map" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Premium abstract map of Islamabad zones -->
+                    <rect id="zone-F-8" class="map-zone" x="150" y="50" width="130" height="90" onclick="highlightZone('F-8')" />
+                    <text class="map-label" x="215" y="95">F-8</text>
 
-                    <rect id="zone-G-10" class="map-zone" x="50" y="150" width="100" height="100" onclick="highlightZone('G-10')" />
-                    <text class="map-label" x="100" y="200">G-10</text>
+                    <rect id="zone-G-10" class="map-zone" x="40" y="160" width="120" height="110" onclick="highlightZone('G-10')" />
+                    <text class="map-label" x="100" y="215">G-10</text>
 
-                    <rect id="zone-G-11" class="map-zone" x="50" y="270" width="100" height="100" onclick="highlightZone('G-11')" />
-                    <text class="map-label" x="100" y="320">G-11</text>
+                    <rect id="zone-G-11" class="map-zone" x="40" y="290" width="120" height="90" onclick="highlightZone('G-11')" />
+                    <text class="map-label" x="100" y="335">G-11</text>
 
-                    <rect id="zone-Blue Area" class="map-zone" x="290" y="100" width="180" height="60" onclick="highlightZone('Blue Area')" />
-                    <text class="map-label" x="380" y="130">Blue Area</text>
+                    <rect id="zone-Blue Area" class="map-zone" x="300" y="110" width="170" height="70" onclick="highlightZone('Blue Area')" />
+                    <text class="map-label" x="385" y="145">BLUE AREA</text>
 
-                    <rect id="zone-I-8" class="map-zone" x="290" y="220" width="120" height="100" onclick="highlightZone('I-8')" />
-                    <text class="map-label" x="350" y="270">I-8</text>
+                    <rect id="zone-I-8" class="map-zone" x="300" y="220" width="140" height="110" onclick="highlightZone('I-8')" />
+                    <text class="map-label" x="370" y="275">I-8</text>
                 </svg>
                 <div class="zone-info" id="zone-info-panel">
-                    <strong>Select a zone</strong> on the map to view status.
+                    Awaiting target zone selection.
                 </div>
             </div>
         </div>
 
         <!-- Right Panel: Actions & Reasoning -->
         <div class="panel">
-            <div class="panel-title">Actions & Decisions</div>
+            <div class="actions-header-wrapper">
+                <div class="panel-title" style="margin:0;">Response Protocols</div>
+            </div>
             
             <div id="actions-container">
                 <!-- Hardcoded actions for Phase 1 -->
                 <div class="action-card">
                     <div class="action-header">
-                        <span class="action-title">Dispatch Emergency Unit</span>
-                        <span class="badge priority-P1">P1</span>
+                        <span class="action-title">DISPATCH UNIT</span>
+                        <span class="badge priority-P1">Priority 1</span>
                     </div>
-                    <div class="action-desc">Deploy nearest response unit to the affected zone.</div>
-                    <button class="btn" style="padding: 5px; font-size: 0.8rem;" onclick="simulateAction('action-1', 'crisis-123')">Simulate</button>
+                    <div class="action-desc">Deploy nearest emergency response unit to the affected zone immediately.</div>
+                    <button class="btn-sm" onclick="simulateAction('ACT-001', 'mock-123')">Execute Simulation</button>
                 </div>
                 <div class="action-card">
                     <div class="action-header">
-                        <span class="action-title">Traffic Rerouting</span>
-                        <span class="badge priority-P2">P2</span>
+                        <span class="action-title">TRAFFIC REROUTING</span>
+                        <span class="badge priority-P2">Priority 2</span>
                     </div>
-                    <div class="action-desc">Update digital maps to redirect traffic away from the incident.</div>
-                    <button class="btn" style="padding: 5px; font-size: 0.8rem;" onclick="simulateAction('action-2', 'crisis-123')">Simulate</button>
-                </div>
-                <div class="action-card">
-                    <div class="action-header">
-                        <span class="action-title">Public Alert</span>
-                        <span class="badge priority-P3">P3</span>
-                    </div>
-                    <div class="action-desc">Broadcast SMS notification to citizens in a 5km radius.</div>
-                    <button class="btn" style="padding: 5px; font-size: 0.8rem;" onclick="simulateAction('action-3', 'crisis-123')">Simulate</button>
+                    <div class="action-desc">Update digital maps to redirect civilian traffic away from the incident perimeter.</div>
+                    <button class="btn-sm" onclick="simulateAction('ACT-002', 'mock-123')">Execute Simulation</button>
                 </div>
             </div>
 
             <div class="reasoning-section" id="agent-reasoning" style="display: none;">
-                <h3 style="font-size: 0.9rem; margin-bottom: 10px; color: #9b59b6;">Agent Reasoning Trace</h3>
+                <div class="reasoning-title">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    AI Reasoning Trace
+                </div>
                 <div id="reasoning-steps"></div>
             </div>
 
-            <div class="panel-title" style="margin-top: 20px;">Action Simulation Log</div>
+            <div class="panel-title" style="margin-top: 24px;">Execution Logs</div>
             <div class="action-log" id="action-log">
-                <div style="color: var(--text-muted); text-align: center; margin-top: 20px;">No actions simulated yet.</div>
+                <div style="color: var(--text-muted); text-align: center; margin-top: 20px; font-style: italic;">System standing by for simulation execution.</div>
             </div>
         </div>
     </div>
 
     <script>
-        // Clock
-        setInterval(() => { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString(); }, 1000);
+        // Clock functionality
+        setInterval(() => { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false }); }, 1000);
 
         const API_BASE = 'http://localhost:8000';
         let zoneDataMap = {}; // Stores crisis data per zone
 
-        // Phase 1: Mock Signal Feed
-        const mockSignalTypes = ['Urban Flooding', 'Road Blockage', 'Power Failure', 'Fire Hazard', 'Traffic Accident'];
+        // Phase 1: Mock Signal Feed Generator
+        const mockSignalTypes = ['Urban Flooding Detected', 'Major Road Blockage', 'Power Grid Failure', 'Critical Fire Hazard', 'Severe Traffic Collision'];
         const mockLocations = ['G-10', 'G-11', 'F-8', 'I-8', 'Blue Area'];
         
-        function addSignal(location, type, severityText, severityClass) {
+        function addSignal(location, type, severityNum) {
             const feed = document.getElementById('signal-feed');
-            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'});
-            const html = `
-                <div class="signal-card">
-                    <div class="signal-header">
-                        <span>${time} | ${location}</span>
-                        <span class="badge ${severityClass}">${severityText}</span>
-                    </div>
-                    <div>Detected: ${type}</div>
+            const time = new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
+            
+            const div = document.createElement('div');
+            div.className = `signal-card s-${severityNum}`;
+            div.style.animation = 'slideIn 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+            
+            div.innerHTML = `
+                <div class="signal-header">
+                    <span class="signal-time">${time}</span>
+                    <span class="badge severity-${severityNum}">Level ${severityNum}</span>
                 </div>
+                <div class="signal-desc">${type}</div>
+                <div class="signal-loc">${location}</div>
             `;
-            feed.insertAdjacentHTML('afterbegin', html);
-            if(feed.children.length > 50) feed.removeChild(feed.lastChild);
+            
+            feed.insertBefore(div, feed.firstChild);
+            if(feed.children.length > 30) feed.removeChild(feed.lastChild);
         }
 
-        // Add mock signal every 3 seconds for Phase 1 visual effect
+        // Generate background signals for premium feel
         setInterval(() => {
             const loc = mockLocations[Math.floor(Math.random() * mockLocations.length)];
             const type = mockSignalTypes[Math.floor(Math.random() * mockSignalTypes.length)];
             const sev = Math.floor(Math.random() * 5) + 1;
-            addSignal(loc, type, `Severity ${sev}`, `severity-${sev}`);
-        }, 3000);
+            addSignal(loc, type, sev);
+        }, 4000);
 
-        // Map Interaction
+        // Initial population
+        for(let i=0; i<3; i++) {
+            addSignal(mockLocations[i], mockSignalTypes[i], Math.floor(Math.random() * 4) + 1);
+        }
+
+        // Map Interaction Logic
         function highlightZone(zoneId) {
-            // Reset all
+            // Reset stroke highlights
             document.querySelectorAll('.map-zone').forEach(el => {
-                if(!el.dataset.crisisColor) el.style.fill = 'var(--map-default)';
+                el.style.stroke = 'rgba(255,255,255,0.15)';
+                el.style.strokeWidth = '2.5';
             });
-            // Info panel
+            
+            // Highlight active
+            const active = document.getElementById(`zone-${zoneId}`);
+            if(active) {
+                active.style.stroke = '#fff';
+                active.style.strokeWidth = '3.5';
+            }
+
+            // Update Info Panel
             const info = document.getElementById('zone-info-panel');
             if(zoneDataMap[zoneId]) {
                 const data = zoneDataMap[zoneId];
-                info.innerHTML = `<strong>${zoneId}</strong>: Active ${data.type} (Severity: ${data.severity})`;
+                info.innerHTML = `<span style="color:var(--accent);font-weight:700;">${zoneId}</span> &mdash; ACTIVE: ${data.type} (Severity Level: ${data.severity})`;
             } else {
-                info.innerHTML = `<strong>${zoneId}</strong>: No active crisis.`;
+                info.innerHTML = `<span style="color:#cbd5e1;font-weight:700;">${zoneId}</span> &mdash; Status: Normal. No active crises detected.`;
             }
         }
 
-        // Update map colors based on severity
+        // Update map colors dynamically based on severity
         function updateMapColor(zone, severity) {
             const el = document.getElementById(`zone-${zone}`);
             if(!el) return;
-            let color = 'var(--map-default)';
-            if(severity >= 4) color = 'var(--red)';
-            else if(severity >= 2) color = 'var(--orange)';
-            else if(severity == 1) color = 'var(--yellow)';
+            
+            let color = 'var(--map-inactive)';
+            let glow = 'none';
+            
+            if(severity >= 4) { color = 'rgba(239, 68, 68, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(239,68,68,0.6))'; }
+            else if(severity >= 2) { color = 'rgba(249, 115, 22, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(249,115,22,0.6))'; }
+            else if(severity == 1) { color = 'rgba(234, 179, 8, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(234,179,8,0.6))'; }
             
             el.style.fill = color;
-            el.dataset.crisisColor = color; // save state
+            el.style.filter = glow;
         }
 
-        // Phase 2: API Integration for Detection
+        // Phase 2: API Integration & Agent Reasoning UI
         async function analyzeCrisis() {
             const text = document.getElementById('crisis-text').value;
             const location = document.getElementById('crisis-zone').value;
             const type = document.getElementById('crisis-type').value;
+            
             const btn = document.getElementById('analyze-btn');
             const spinner = document.getElementById('analyze-spinner');
             const banner = document.getElementById('error-banner');
             
-            if(!text) return alert("Please enter a crisis report.");
+            if(!text) return alert("System requires intelligence text for analysis.");
 
             btn.disabled = true;
             spinner.style.display = 'block';
             banner.style.display = 'none';
 
             try {
-                // Fetch to ingest (mocking real flow)
+                // Simulate real API latency
                 await fetch(`${API_BASE}/api/ingest`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({text, location, type})
-                }).catch(() => {}); // ignore error for Phase 1 standalone testing
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, location, type})
+                }).catch(() => {}); 
 
-                // Fetch detection
                 const response = await fetch(`${API_BASE}/api/detect`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'}
+                    method: 'POST', headers: {'Content-Type': 'application/json'}
                 });
                 
                 if(!response.ok) throw new Error("API failed");
@@ -308,26 +555,40 @@
                 renderCrisisData(data);
                 
             } catch (error) {
-                console.error(error);
+                // FALLBACK: Premium Simulation if backend offline (for Phase 1 & 2 isolation)
                 banner.style.display = 'block';
-                // Fallback rendering for standalone Phase 1/2 demo without backend
-                renderCrisisData({
-                    detected_crisis: { type: type.toUpperCase(), location: location, severity: 4, confidence: 0.92 },
-                    recommended_actions: [
-                        {id: 'a1', type: 'dispatch', description: 'Dispatch fire truck to ' + location, priority: 1},
-                        {id: 'a2', type: 'reroute', description: 'Reroute traffic around ' + location, priority: 2}
-                    ],
-                    agent_trace: { reasoning_steps: ["Signal mentions 'pani bhar gaya'", "Location identified as " + location, "High severity implied by stranded vehicles", "Recommend immediate dispatch"] },
-                    crisis_id: 'mock-123'
-                });
-            } finally {
-                btn.disabled = false;
-                spinner.style.display = 'none';
-            }
+                setTimeout(() => { banner.style.display = 'none'; }, 5000);
+                
+                setTimeout(() => {
+                    renderCrisisData({
+                        detected_crisis: { type: type.toUpperCase(), location: location, severity: 5, confidence: 0.96 },
+                        recommended_actions: [
+                            {id: 'ACT-01', type: 'dispatch', description: `Scramble emergency services to ${location} coordinates immediately.`, priority: 1},
+                            {id: 'ACT-02', type: 'reroute', description: `Initiate traffic diversion protocols surrounding ${location} perimeter.`, priority: 2},
+                            {id: 'ACT-03', type: 'alert', description: `Broadcast localized SMS emergency warning to all devices within 3km.`, priority: 3}
+                        ],
+                        agent_trace: { reasoning_steps: [
+                            `Parsed incoming intelligence: Keywords detected [High Threat].`, 
+                            `Geospatial mapping locked to sector: ${location}.`, 
+                            `Severity calculated at Level 5 due to imminent public risk indicators.`, 
+                            `Synthesizing response protocols... Ready for execution.`
+                        ]},
+                        crisis_id: 'SIM-909'
+                    });
+                    
+                    btn.disabled = false;
+                    spinner.style.display = 'none';
+                }, 1200);
+                return;
+            } 
+            
+            btn.disabled = false;
+            spinner.style.display = 'none';
         }
 
         function renderCrisisData(data) {
             const crisis = data.detected_crisis;
+            // Update Map
             zoneDataMap[crisis.location] = crisis;
             updateMapColor(crisis.location, crisis.severity);
             highlightZone(crisis.location);
@@ -338,50 +599,52 @@
             data.recommended_actions.forEach(action => {
                 const priorityClass = action.priority === 1 ? 'priority-P1' : (action.priority === 2 ? 'priority-P2' : 'priority-P3');
                 container.innerHTML += `
-                    <div class="action-card">
+                    <div class="action-card" style="animation: slideIn 0.4s ease;">
                         <div class="action-header">
-                            <span class="action-title">${action.type.toUpperCase()}</span>
-                            <span class="badge ${priorityClass}">P${action.priority}</span>
+                            <span class="action-title">${action.type.toUpperCase()} PROTOCOL</span>
+                            <span class="badge ${priorityClass}">Priority ${action.priority}</span>
                         </div>
                         <div class="action-desc">${action.description}</div>
-                        <button class="btn" style="padding: 5px; font-size: 0.8rem;" onclick="simulateAction('${action.id}', '${data.crisis_id || 'test'}')">Simulate</button>
+                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.crisis_id}')">Execute Simulation</button>
                     </div>
                 `;
             });
 
-            // Render Reasoning
-            document.getElementById('agent-reasoning').style.display = 'block';
+            // Render Reasoning Trace
+            const reasoningSec = document.getElementById('agent-reasoning');
+            reasoningSec.style.display = 'block';
+            reasoningSec.style.animation = 'slideIn 0.5s ease';
+            
             const stepsDiv = document.getElementById('reasoning-steps');
             stepsDiv.innerHTML = '';
+            
             data.agent_trace.reasoning_steps.forEach((step, idx) => {
                 const div = document.createElement('div');
                 div.className = 'reasoning-step';
                 div.innerHTML = `<span class="step-num">${idx+1}</span> <span>${step}</span>`;
                 stepsDiv.appendChild(div);
                 
-                // Typing animation effect
+                // Orchestrated typing/fade-in animation
                 setTimeout(() => {
-                    div.style.transition = 'opacity 0.5s ease';
+                    div.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
                     div.style.opacity = '1';
-                }, idx * 400);
+                    div.style.transform = 'translateY(0)';
+                }, idx * 600);
             });
         }
 
-        // Phase 2: Action Simulation
+        // Phase 2: Action Simulation UI
         async function simulateAction(actionId, crisisId) {
             const logContainer = document.getElementById('action-log');
-            if(logContainer.innerHTML.includes('No actions simulated yet')) logContainer.innerHTML = '';
+            if(logContainer.innerHTML.includes('System standing by')) logContainer.innerHTML = '';
             
-            const time = new Date().toLocaleTimeString();
-            let beforeState = "Pending";
-            let afterState = "Executing...";
+            const time = new Date().toLocaleTimeString('en-US', {hour12:false});
+            let beforeState = "Awaiting deployment telemetry...";
+            let afterState = "Executing response framework...";
 
             try {
-                // Try fetching from real backend
                 const response = await fetch(`${API_BASE}/api/simulate`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({action_id: actionId, crisis_id: crisisId})
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action_id: actionId, crisis_id: crisisId})
                 });
                 if(response.ok) {
                     const data = await response.json();
@@ -389,16 +652,22 @@
                     afterState = JSON.stringify(data.after_state);
                 } else throw new Error();
             } catch (e) {
-                // Fallback for standalone demo
-                beforeState = "Status: Alert Pending";
-                afterState = "Status: Dispatched & Notified";
+                // Fallback UI execution
+                beforeState = "Status: Critical - Unresolved";
+                afterState = "Status: Units Deployed & Contained";
             }
 
             const html = `
                 <div class="log-entry">
-                    <div class="log-time">[${time}] Action Simulated (ID: ${actionId})</div>
-                    <div class="log-state state-before">Before: ${beforeState}</div>
-                    <div class="log-state state-after">After: ${afterState}</div>
+                    <div class="log-time">[${time}] EXECUTION LOG: ${actionId}</div>
+                    <div class="log-state-container">
+                        <div class="log-state state-before">
+                            <span class="state-icon">⚠️</span> ${beforeState}
+                        </div>
+                        <div class="log-state state-after">
+                            <span class="state-icon">✅</span> ${afterState}
+                        </div>
+                    </div>
                 </div>
             `;
             logContainer.insertAdjacentHTML('beforeend', html);
