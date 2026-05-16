@@ -1,18 +1,24 @@
 """
 CIRO FastAPI Backend — Main Application
 =========================================
-4 API endpoints for crisis detection and response orchestration.
+Backend API for crisis detection and response orchestration.
 The /api/detect endpoint invokes the full CIROPipeline (4 agents in sequence).
 
 Endpoints:
-    POST /api/ingest    — Ingest raw crisis signals
-    POST /api/detect    — Run full agent pipeline, return crisis + trace
-    POST /api/actions   — Get recommended actions for a crisis
-    POST /api/simulate  — Run action simulation
+    POST /api/ingest              — Ingest raw crisis signals
+    POST /api/detect              — Run full agent pipeline, return crisis + trace
+    POST /api/actions             — Get recommended actions for a crisis
+    POST /api/simulate            — Run action simulation
+    GET  /api/health              — Health check
+    GET  /api/aggregate/{zone}    — Multi-source signal aggregation
+    GET  /api/crisis/{id}/logs    — Fetch agent trace from Firestore
+    POST /api/demo/run-scenario/{scenario_id} — SSE streaming demo
+    WS   /ws/signals              — Live signal WebSocket
 """
 
 import sys
 import os
+import json
 import uuid
 from datetime import datetime
 
@@ -21,6 +27,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from shared.models import (
@@ -50,6 +58,18 @@ app = FastAPI(
         "Sensor → Analyst → Coordinator → Simulator."
     ),
     version="1.0.0",
+)
+
+# ------------------------------------------------------------------ #
+# CORS — allow dashboard, mobile, and any origin to call the API
+# ------------------------------------------------------------------ #
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -105,6 +125,17 @@ signal_store: list[dict] = []
 # ------------------------------------------------------------------ #
 # Endpoints
 # ------------------------------------------------------------------ #
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for Cloud Run and monitoring."""
+    return {
+        "status": "healthy",
+        "service": "CIRO Backend",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat(),
+    }
+
 
 @app.post("/api/ingest", response_model=IngestResponse)
 async def ingest_signals(request: IngestRequest):
@@ -276,4 +307,78 @@ async def get_crisis_logs(id: str):
     except Exception as e:
         print(f"Firestore read failed: {e}")
         return {"status": "error", "message": f"Could not fetch logs (GCP error: {e})"}
+
+
+# ------------------------------------------------------------------ #
+# Phase 4: SSE Scenario Demo Endpoint
+# ------------------------------------------------------------------ #
+
+SCENARIOS_PATH = os.path.join(os.path.dirname(__file__), "..", "scenarios.json")
+
+
+@app.post("/api/demo/run-scenario/{scenario_id}")
+async def run_scenario_demo(scenario_id: str):
+    """Stream a scenario as Server-Sent Events (SSE).
+    
+    Loads the scenario from scenarios.json, iterates through each signal
+    with a 1.5s delay between events to simulate real-time ingestion.
+    Each event is an SSE `data:` line containing the signal JSON.
+    
+    Usage:
+        curl -N -X POST http://localhost:8000/api/demo/run-scenario/A
+    """
+    # Load scenarios
+    try:
+        with open(SCENARIOS_PATH, "r") as f:
+            scenarios = json.load(f)
+    except FileNotFoundError:
+        return {"status": "error", "message": "scenarios.json not found"}
+
+    # Find requested scenario
+    scenario = next((s for s in scenarios if s["scenario_id"] == scenario_id), None)
+    if not scenario:
+        return {"status": "error", "message": f"Scenario '{scenario_id}' not found. Available: A, B, C"}
+
+    async def event_generator():
+        signals = scenario["signals"]
+        # Send scenario metadata first
+        meta = {
+            "event": "scenario_start",
+            "scenario_id": scenario["scenario_id"],
+            "name": scenario["name"],
+            "zone": scenario["zone"],
+            "description": scenario["description"],
+            "total_signals": len(signals),
+        }
+        yield f"data: {json.dumps(meta)}\n\n"
+        await asyncio.sleep(0.5)
+
+        # Stream each signal with delay
+        for i, signal in enumerate(signals):
+            event_data = {
+                "event": "signal",
+                "index": i + 1,
+                "total": len(signals),
+                "signal": signal,
+            }
+            yield f"data: {json.dumps(event_data)}\n\n"
+            await asyncio.sleep(1.5)
+
+        # Send completion event
+        complete = {
+            "event": "scenario_complete",
+            "scenario_id": scenario["scenario_id"],
+            "signals_streamed": len(signals),
+        }
+        yield f"data: {json.dumps(complete)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 

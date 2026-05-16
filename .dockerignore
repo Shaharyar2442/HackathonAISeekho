@@ -1,0 +1,28 @@
+# Ignore version control
+.git
+.gitignore
+
+# Ignore IDE / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore environment files (secrets injected via Cloud Run env vars)
+backend/.env
+.env
+
+# Ignore non-backend directories
+ciro_mobile/
+dashboard.html
+CIRO_Revised_Implementation_Plan.docx
+README.md
+
+# Ignore Docker-in-Docker
+Dockerfile
+.dockerignore
