@@ -656,7 +656,8 @@
 
             const container = document.getElementById('actions-container');
             container.innerHTML = '';
-            data.recommended_actions.forEach(action => {
+            const actionsList = data.actions_recommended || data.recommended_actions || [];
+            actionsList.forEach(action => {
                 const priorityClass = action.priority === 1 ? 'priority-P1' : (action.priority === 2 ? 'priority-P2' : 'priority-P3');
                 container.innerHTML += `
                     <div class="action-card" style="animation: slideIn 0.4s ease;">
@@ -665,7 +666,7 @@
                             <span class="badge ${priorityClass}">Priority ${action.priority}</span>
                         </div>
                         <div class="action-desc">${action.description}</div>
-                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.crisis_id}', '${action.type}', '${crisis.location}')">Execute Simulation</button>
+                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.detected_crisis.id || 'SIM-909'}', '${action.type}', '${crisis.location}')">Execute Simulation</button>
                     </div>
                 `;
             });
@@ -677,17 +678,26 @@
             const stepsDiv = document.getElementById('reasoning-steps');
             stepsDiv.innerHTML = '';
             
-            data.agent_trace.reasoning_steps.forEach((step, idx) => {
-                const div = document.createElement('div');
-                div.className = 'reasoning-step';
-                div.innerHTML = `<span class="step-num">${idx+1}</span> <span>${step}</span>`;
-                stepsDiv.appendChild(div);
-                
-                setTimeout(() => {
-                    div.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
-                    div.style.opacity = '1';
-                    div.style.transform = 'translateY(0)';
-                }, idx * 600);
+            let globalIdx = 0;
+            // Handle both Array of AgentMessage (backend) and Object (mock) formats
+            const traces = Array.isArray(data.agent_trace) ? data.agent_trace : [data.agent_trace];
+            
+            traces.forEach((agentMsg) => {
+                const steps = agentMsg.reasoning_steps || [];
+                steps.forEach((step) => {
+                    const div = document.createElement('div');
+                    div.className = 'reasoning-step';
+                    const agentPrefix = agentMsg.agent_name ? `<b>[${agentMsg.agent_name}]</b> ` : '';
+                    div.innerHTML = `<span class="step-num">${globalIdx+1}</span> <span>${agentPrefix}${step}</span>`;
+                    stepsDiv.appendChild(div);
+                    
+                    setTimeout(() => {
+                        div.style.transition = 'all 0.6s cubic-bezier(0.4, 0, 0.2, 1)';
+                        div.style.opacity = '1';
+                        div.style.transform = 'translateY(0)';
+                    }, globalIdx * 600);
+                    globalIdx++;
+                });
             });
         }
 
