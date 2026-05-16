@@ -684,22 +684,20 @@
                 banner.style.display = 'block';
                 setTimeout(() => { banner.style.display = 'none'; }, 5000);
                 
-                setTimeout(() => {
-                    renderCrisisData({
-                        detected_crisis: { type: type.toUpperCase(), location: location, severity: 5, confidence: 0.96 },
-                        recommended_actions: [
-                            {id: 'ACT-01', type: 'dispatch', description: `Scramble emergency services to ${location} coordinates immediately.`, priority: 1},
-                            {id: 'ACT-02', type: 'reroute', description: `Initiate traffic diversion protocols surrounding ${location} perimeter.`, priority: 2}
-                        ],
-                        agent_trace: { reasoning_steps: [
-                            `Parsed incoming intelligence: Keywords detected [High Threat].`, 
-                            `Geospatial mapping locked to sector: ${location}.`, 
-                            `Severity calculated at Level 5 due to imminent public risk indicators.`, 
-                            `Synthesizing response protocols... Ready for execution.`
-                        ]},
-                        crisis_id: 'SIM-909'
-                    });
-                }, 1200);
+                renderCrisisData({
+                    detected_crisis: { type: type.toUpperCase(), location: location, severity: 5, confidence: 0.96 },
+                    recommended_actions: [
+                        {id: 'ACT-01', type: 'dispatch', description: `Scramble emergency services to ${location} coordinates immediately.`, priority: 1},
+                        {id: 'ACT-02', type: 'reroute', description: `Initiate traffic diversion protocols surrounding ${location} perimeter.`, priority: 2}
+                    ],
+                    agent_trace: { reasoning_steps: [
+                        `Parsed incoming intelligence: Keywords detected [High Threat].`, 
+                        `Geospatial mapping locked to sector: ${location}.`, 
+                        `Severity calculated at Level 5 due to imminent public risk indicators.`, 
+                        `Synthesizing response protocols... Ready for execution.`
+                    ]},
+                    crisis_id: 'SIM-909'
+                });
             } finally {
                 btn.disabled = false;
                 spinner.style.display = 'none';
