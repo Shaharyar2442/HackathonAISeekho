@@ -305,6 +305,7 @@
             border-radius: 16px; flex: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,0.05);
             box-shadow: inset 0 5px 20px rgba(0,0,0,0.2);
             position: relative;
+            min-height: 350px;
         }
         .timeline-line {
             position: absolute; left: 34px; top: 40px; bottom: 40px; width: 2px; background: rgba(255,255,255,0.1);
@@ -500,36 +501,47 @@
 
         function addLiveSignal(data) {
             const feed = document.getElementById('signal-feed');
-            
+
             let timeStr = new Date().toLocaleTimeString('en-US', {hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit'});
-            if(data.timestamp) {
+            if (data.timestamp) {
                 try { timeStr = new Date(data.timestamp).toLocaleTimeString('en-US', {hour12: false}); } catch(e){}
             }
-            
+
             const div = document.createElement('div');
             div.className = `signal-card s-${data.severity}`;
-            
-            // Click to auto-fill form for easy demoing
+            div.style.animation = 'slideIn 0.3s ease';
+
+            // Click signal card to auto-fill the analysis form
             div.onclick = () => {
-                document.getElementById('crisis-text').value = data.text || `Live report from ${data.source || 'sensor'}: ${data.crisis_type}`;
+                document.getElementById('crisis-text').value = data.text || `${data.crisis_type} reported at ${data.location}`;
                 const zoneDrop = document.getElementById('crisis-zone');
-                for(let i=0; i<zoneDrop.options.length; i++) {
-                    if(zoneDrop.options[i].value === data.location) zoneDrop.selectedIndex = i;
+                for (let i = 0; i < zoneDrop.options.length; i++) {
+                    if (zoneDrop.options[i].value === data.location) { zoneDrop.selectedIndex = i; break; }
+                }
+                const typeDrop = document.getElementById('crisis-type');
+                for (let i = 0; i < typeDrop.options.length; i++) {
+                    if (typeDrop.options[i].value === data.crisis_type) { typeDrop.selectedIndex = i; break; }
                 }
             };
-            
+
+            const signalText = data.text || `${data.crisis_type} detected in sector ${data.location}`;
+            const sourceLabel = (data.source || 'live_feed').replace(/_/g, ' ');
+
             div.innerHTML = `
                 <div class="signal-header">
                     <span class="signal-time">${timeStr}</span>
-                    <span class="badge severity-${data.severity}">Level ${data.severity}</span>
+                    <span class="badge severity-${Math.min(data.severity, 5)}">Level ${data.severity}</span>
                 </div>
-                <div class="signal-desc">${data.crisis_type.toUpperCase()}</div>
-                <div class="signal-loc">${data.location} | Source: ${data.source || 'Live Feed'}</div>
+                <div class="signal-desc">${signalText}</div>
+                <div class="signal-loc">${data.location} &nbsp;|&nbsp; ${sourceLabel}</div>
             `;
-            
+
+            // Prepend (newest at top) and cap at 50
             feed.insertBefore(div, feed.firstChild);
-            if(feed.children.length > 50) feed.removeChild(feed.lastChild);
-            
+            if (feed.children.length > 50) feed.removeChild(feed.lastChild);
+
+            // Update zone color + store data
+            zoneDataMap[data.location] = { type: data.crisis_type, severity: data.severity };
             pulseMapZone(data.location, data.severity);
         }
         
@@ -705,83 +717,121 @@
         async function simulateAction(actionId, crisisId, actionType, location) {
             const timeline = document.getElementById('timeline-log');
             const emptyMsg = document.getElementById('timeline-empty');
-            if(emptyMsg) emptyMsg.style.display = 'none';
-            
-            const time = new Date().toLocaleTimeString('en-US', {hour12:false});
-            
-            let beforeVal = Math.floor(Math.random() * 20) + 75; // 75-95%
-            let afterVal = Math.floor(Math.random() * 30) + 20; // 20-50%
-            let metricName = "Congestion";
-            
-            if(actionType && actionType.toLowerCase().includes("dispatch")) metricName = "Risk Lvl";
+            if (emptyMsg) emptyMsg.style.display = 'none';
 
+            const time = new Date().toLocaleTimeString('en-US', {hour12: false});
+            // Use unique suffix to avoid duplicate element IDs on repeated simulations
+            const uid = `${actionId}-${Date.now()}`;
+
+            // --- Defaults (used if API call fails) ---
+            let beforeVal = Math.floor(Math.random() * 20) + 75;  // 75–95
+            let afterVal  = Math.floor(Math.random() * 25) + 20;  // 20–45
+            let metricLabel = 'Congestion';
+            let execLogLines = [];
+
+            // --- Real API call ---
             try {
-                const response = await fetch(`${API_BASE}/api/simulate`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action_id: actionId, action_type: actionType})
+                const resp = await fetch(`${API_BASE}/api/simulate`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({action_id: actionId, action_type: actionType})
                 });
-                if(response.ok) {
-                    const data = await response.json();
-                } else throw new Error();
+                if (resp.ok) {
+                    const payload = await resp.json();
+                    const sim = payload.simulation_result;
+                    if (sim) {
+                        const bs = sim.before_state || {};
+                        const as_ = sim.after_state  || {};
+                        execLogLines = sim.execution_log || [];
+
+                        // Pick the most meaningful numeric metric
+                        if (bs.congestion_percent !== undefined) {
+                            beforeVal   = bs.congestion_percent;
+                            afterVal    = as_.congestion_percent ?? afterVal;
+                            metricLabel = 'Congestion';
+                        } else if (bs.water_level_cm !== undefined) {
+                            beforeVal   = bs.water_level_cm;
+                            afterVal    = as_.water_level_cm ?? afterVal;
+                            metricLabel = 'Water Lvl (cm)';
+                        } else if (bs.citizens_notified !== undefined) {
+                            beforeVal   = 0;
+                            afterVal    = Math.min(100, Math.round((as_.citizens_notified || 15000) / 200));
+                            metricLabel = 'Reach %';
+                        }
+                    }
+                }
             } catch (e) {
-                console.warn("Simulation API failed, using visual mock.");
+                console.warn('Simulation API unreachable – using visual mock.', e);
             }
 
+            // --- Build execution log HTML ---
+            const logHtml = execLogLines.length
+                ? `<div style="margin-top:10px;border-top:1px solid rgba(255,255,255,0.06);padding-top:10px;">
+                       ${execLogLines.map(l => `<div style="font-size:0.78rem;color:#94a3b8;padding:3px 0;">▸ ${l}</div>`).join('')}
+                   </div>`
+                : '';
+
+            // --- Insert timeline entry at BOTTOM (spec requirement) ---
             const html = `
                 <div class="timeline-item">
                     <div class="timeline-dot"></div>
                     <div class="timeline-time">${time}</div>
                     <div class="timeline-title">EXECUTED: <b>${actionType ? actionType.toUpperCase() : actionId}</b></div>
-                    <div style="font-size: 0.85rem; margin-bottom: 10px;">
-                        <span style="background: rgba(239,68,68,0.2); color: #fca5a5; padding: 2px 6px; border-radius: 4px;">Before (Critical)</span> 
-                        &#8594; <span style="background: rgba(34,197,94,0.2); color: #86efac; padding: 2px 6px; border-radius: 4px;">After (Resolved)</span>
+                    <div style="font-size:0.82rem;margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                        <span style="background:rgba(239,68,68,0.2);color:#fca5a5;padding:2px 8px;border-radius:4px;">Before (Critical)</span>
+                        <span style="color:#64748b">&#8594;</span>
+                        <span style="background:rgba(34,197,94,0.2);color:#86efac;padding:2px 8px;border-radius:4px;">After (Resolved)</span>
                     </div>
-                    
                     <div class="impact-bars">
                         <div class="bar-row">
                             <span class="bar-label">Before</span>
-                            <div class="bar-bg"><div class="bar-fill before" style="width: 0%" id="b-${actionId}"></div></div>
+                            <div class="bar-bg"><div class="bar-fill before" style="width:0%" id="b-${uid}"></div></div>
                             <span class="bar-value">${beforeVal}%</span>
                         </div>
                         <div class="bar-row">
                             <span class="bar-label">After</span>
-                            <div class="bar-bg"><div class="bar-fill after" style="width: 0%" id="a-${actionId}"></div></div>
+                            <div class="bar-bg"><div class="bar-fill after" style="width:0%" id="a-${uid}"></div></div>
                             <span class="bar-value">${afterVal}%</span>
                         </div>
                     </div>
-                </div>
-            `;
-            timeline.insertAdjacentHTML('afterbegin', html);
-            
-            // Scroll into view
-            const newItem = timeline.firstElementChild;
-            if(newItem) newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            
-            setTimeout(() => {
-                document.getElementById(`b-${actionId}`).style.width = `${beforeVal}%`;
-                document.getElementById(`a-${actionId}`).style.width = `${afterVal}%`;
-            }, 100);
+                    <div style="font-size:0.72rem;color:#64748b;margin-top:8px;text-transform:uppercase;letter-spacing:0.5px;">Metric: ${metricLabel}</div>
+                    ${logHtml}
+                </div>`;
 
-            // CRITICAL before/after visual: Update SVG zone rect fill to #27AE60
+            // Append at bottom, then scroll the new card into view
+            timeline.insertAdjacentHTML('beforeend', html);
+            const newItem = timeline.lastElementChild;
+            if (newItem) newItem.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+            // Animate bars after DOM paint
+            requestAnimationFrame(() => setTimeout(() => {
+                const bEl = document.getElementById(`b-${uid}`);
+                const aEl = document.getElementById(`a-${uid}`);
+                if (bEl) bEl.style.width = `${beforeVal}%`;
+                if (aEl) aEl.style.width  = `${afterVal}%`;
+            }, 80));
+
+            // --- Map: turn resolved zone green ---
             if (location) {
                 const zoneRect = document.getElementById(`zone-${location}`);
                 if (zoneRect) {
-                    zoneRect.style.transition = 'fill 1s ease';
-                    zoneRect.style.fill = '#27AE60';
-                    zoneRect.style.filter = 'drop-shadow(0 0 15px rgba(39, 174, 96, 0.6))';
-                    
-                    // Add 'Resolved' label
-                    const existingLabel = document.getElementById(`resolved-${location}`);
-                    if (!existingLabel) {
-                        const svg = document.querySelector('svg.map');
+                    zoneRect.style.transition = 'fill 1s ease, filter 1s ease';
+                    zoneRect.style.fill   = '#16a34a';
+                    zoneRect.style.filter = 'drop-shadow(0 0 15px rgba(22, 163, 74, 0.7))';
+                    // Update zone info panel
+                    zoneDataMap[location] = { type: actionType, severity: 0 };
+                    // Inject RESOLVED label into SVG (only once per zone)
+                    if (!document.getElementById(`resolved-${location}`)) {
+                        const svg  = document.querySelector('svg.map');
                         const bbox = zoneRect.getBBox();
-                        const newText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                        newText.setAttribute("id", `resolved-${location}`);
-                        newText.setAttribute("x", bbox.x + bbox.width/2);
-                        newText.setAttribute("y", bbox.y + bbox.height/2 + 20); 
-                        newText.setAttribute("class", "map-label");
-                        newText.setAttribute("style", "fill: #4ade80; font-size: 13px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);");
-                        newText.textContent = "RESOLVED";
-                        svg.appendChild(newText);
+                        const lbl  = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                        lbl.setAttribute('id',    `resolved-${location}`);
+                        lbl.setAttribute('x',     bbox.x + bbox.width / 2);
+                        lbl.setAttribute('y',     bbox.y + bbox.height / 2 + 20);
+                        lbl.setAttribute('class', 'map-label');
+                        lbl.setAttribute('style', 'fill:#4ade80;font-size:12px;font-weight:700;');
+                        lbl.textContent = '✓ RESOLVED';
+                        svg.appendChild(lbl);
                     }
                 }
             }
