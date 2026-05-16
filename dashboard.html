@@ -724,7 +724,7 @@
                             <span class="badge ${priorityClass}">Priority ${action.priority}</span>
                         </div>
                         <div class="action-desc">${action.description}</div>
-                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.detected_crisis.id || 'SIM-909'}', '${action.type}', '${crisis.location}')">Execute Simulation</button>
+                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.detected_crisis.id || 'SIM-909'}', '${action.type}', '${crisis.location}', event)">Execute Simulation</button>
                     </div>
                 `;
             });
@@ -760,7 +760,16 @@
         }
 
         // Phase 3: Visual Timeline Simulation
-        async function simulateAction(actionId, crisisId, actionType, location) {
+        async function simulateAction(actionId, crisisId, actionType, location, event) {
+            if (event && event.currentTarget) {
+                const btn = event.currentTarget;
+                btn.disabled = true;
+                btn.innerText = '✓ Executed';
+                btn.style.background = '#22c55e';
+                btn.style.color = '#fff';
+                btn.parentElement.style.opacity = '0.5';
+                btn.parentElement.style.border = '1px solid #22c55e';
+            }
             const timeline = document.getElementById('timeline-log');
             const emptyMsg = document.getElementById('timeline-empty');
             if (emptyMsg) emptyMsg.style.display = 'none';
