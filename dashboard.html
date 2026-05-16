@@ -924,7 +924,6 @@
                 // Automatically run the AI Analysis
                 setTimeout(() => {
                     analyzeCrisis();
-                    isScenarioRunning = false; // Restore normal background signals
                 }, 1000);
             });
             
@@ -936,6 +935,7 @@
         }
         
         function resetDashboard() {
+            isScenarioRunning = false;
             document.getElementById('signal-feed').innerHTML = '';
             document.getElementById('actions-container').innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px;">Awaiting AI anomaly detection to generate response protocols.</div>';
             document.getElementById('reasoning-steps').innerHTML = '';
