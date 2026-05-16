@@ -692,10 +692,10 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
       _subscription = eventStream.listen((event) {
         if (event == null || !mounted) return;
         setState(() {
-          if (event['log'] != null) _logs.add(event['log']);
+          if (event['log'] != null) _logs.add(event['log'] as String);
           if (event['step'] != null) _currentStep = event['step'] as int;
           if (event['result'] != null) {
-            _result = event['result'];
+            _result = event['result'] as Map<String, dynamic>;
             _isComplete = true;
           }
         });
