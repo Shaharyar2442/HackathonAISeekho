@@ -884,7 +884,7 @@
         }
         // Phase 4: Scenario Runner
         let currentEventSource = null;
-        function runScenario(scenarioId) {
+        async function runScenario(scenarioId) {
             resetDashboard();
             isScenarioRunning = true;
             if (currentEventSource) currentEventSource.close();
@@ -901,38 +901,56 @@
             if (scenarioId === 'C') { typeSelect.value = 'outage'; zoneSelect.value = 'Blue Area'; }
             document.getElementById('crisis-text').value = '';
             
-            currentEventSource = new EventSource(`${API_BASE}/api/demo/run-scenario/${scenarioId}`);
-            
-            currentEventSource.addEventListener('scenario_start', (e) => {
-                console.log('Scenario Started:', e.data);
-            });
-            
-            currentEventSource.addEventListener('signal', (e) => {
-                const payload = JSON.parse(e.data);
-                addLiveSignal(payload.signal);
+            try {
+                const response = await fetch(`${API_BASE}/api/demo/run-scenario/${scenarioId}`, {
+                    method: 'POST',
+                    headers: { 'Accept': 'text/event-stream' }
+                });
                 
-                // Append text to the form automatically
-                const textEl = document.getElementById('crisis-text');
-                textEl.value += (textEl.value ? '\n' : '') + payload.signal.text;
-            });
-            
-            currentEventSource.addEventListener('scenario_complete', (e) => {
-                console.log('Scenario Complete:', e.data);
-                currentEventSource.close();
-                btn.innerText = origText;
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 
-                // Automatically run the AI Analysis
-                setTimeout(() => {
-                    analyzeCrisis();
-                    isScenarioRunning = false; // Restore normal background signals
-                }, 1000);
-            });
-            
-            currentEventSource.onerror = (err) => {
-                console.error("SSE Error:", err);
-                currentEventSource.close();
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // keep the last partial line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.replace('data: ', '').trim();
+                            if (!dataStr) continue;
+                            try {
+                                const payload = JSON.parse(dataStr);
+                                if (payload.event === 'scenario_start') {
+                                    console.log('Scenario Started:', payload);
+                                } else if (payload.event === 'signal') {
+                                    addLiveSignal(payload.signal);
+                                    const textEl = document.getElementById('crisis-text');
+                                    textEl.value += (textEl.value ? '\n' : '') + payload.signal.text;
+                                } else if (payload.event === 'scenario_complete') {
+                                    console.log('Scenario Complete:', payload);
+                                    btn.innerText = origText;
+                                    setTimeout(() => {
+                                        analyzeCrisis();
+                                        isScenarioRunning = false;
+                                    }, 1000);
+                                    return;
+                                }
+                            } catch(e) { console.error('SSE JSON error', e); }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Fetch SSE Error:", err);
                 btn.innerText = origText;
-            };
+                isScenarioRunning = false;
+            }
         }
         
         function resetDashboard() {
