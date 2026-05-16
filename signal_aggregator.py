@@ -7,7 +7,7 @@ from typing import List
 
 # Add parent directory to path to find models.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from models import CrisisSignal, AgentMessage
+from shared.models import CrisisSignal, AgentMessage
 from signal_processor import SignalNormalizer, MockDataGenerator
 
 # ─────────────────────────────────────────────────────────────────────────────
