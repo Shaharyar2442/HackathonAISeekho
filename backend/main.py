@@ -35,6 +35,9 @@ from action_simulator import ActionSimulator
 from config import get_settings
 from db import get_db
 
+from signal_processor import MockDataGenerator
+from signal_aggregator import SignalAggregator, CrisisScorer, AggregatorAgentLogger
+
 # ------------------------------------------------------------------ #
 # FastAPI Application
 # ------------------------------------------------------------------ #
@@ -203,22 +206,59 @@ async def simulate_action(request: SimulateRequest):
 
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
-    """WebSocket endpoint that broadcasts a mock live signal every 5 seconds.
-    Used for dashboard live feeds.
+    """WebSocket endpoint that broadcasts a realistic mock live signal every 5 seconds.
+    Uses Member 3's MockDataGenerator.
     """
     await websocket.accept()
+    generator = MockDataGenerator()
     try:
         while True:
-            mock_signal = {
-                "id": str(uuid.uuid4())[:8],
-                "text": f"Live incoming signal stream: {datetime.now().strftime('%H:%M:%S')}",
-                "source": "live_feed",
-                "timestamp": datetime.now().isoformat()
-            }
-            await websocket.send_json(mock_signal)
+            # Use Member 3's generator for realistic signals
+            mock_signal = generator.generate(count=1)[0]
+            # Add some live metadata
+            signal_data = mock_signal.model_dump()
+            signal_data["id"] = str(uuid.uuid4())[:8]
+            signal_data["is_live"] = True
+            
+            await websocket.send_json(signal_data)
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
+
+
+@app.get("/api/aggregate/{zone}")
+async def aggregate_zone_signals(zone: str):
+    """Uses Member 3's SignalAggregator to fetch multi-source signals for a zone."""
+    aggregator = SignalAggregator()
+    scorer = CrisisScorer()
+    logger = AggregatorAgentLogger()
+    
+    signals = aggregator.aggregate_all(zone)
+    assessment = scorer.score(signals)
+    trace_log = logger.log(zone, signals, assessment)
+    
+    # Save trace to Firestore
+    try:
+        db = get_db()
+        db.collection("agent_traces").add({
+            "trace_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "agent_trace": [trace_log.model_dump()],
+            "zone": zone
+        })
+    except Exception as e:
+        print(f"WARNING: Could not save trace to Firestore: {e}")
+        
+    return {
+        "zone": zone,
+        "signals": [s.model_dump() for s in signals],
+        "assessment": {
+            "crisis_probability": assessment.crisis_probability,
+            "severity_level": assessment.severity_level,
+            "trend": assessment.trend
+        },
+        "agent_trace": [trace_log.model_dump()]
+    }
 
 
 @app.get("/api/crisis/{id}/logs")

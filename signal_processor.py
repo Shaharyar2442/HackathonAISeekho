@@ -7,7 +7,7 @@ from typing import List, Optional
 
 # Add parent directory to path to find models.py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from models import CrisisSignal, AgentMessage
+from shared.models import CrisisSignal, AgentMessage
 # Load dataset from JSON
 DATA_PATH = os.path.join(os.path.dirname(__file__), "crisis_data.json")
 with open(DATA_PATH, "r") as f:
