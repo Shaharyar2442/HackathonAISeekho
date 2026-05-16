@@ -1,3 +1,16 @@
+<!--
+  CIRO | Crisis Intelligence & Response Orchestrator
+  Hackathon Phase 4 Final Submission
+  
+  Configuration:
+  - You can set the live Cloud Run backend URL below in the Settings Panel.
+  - The live demo scenarios can be run via the Scenario buttons above the map.
+  
+  Panels:
+  - Left Panel: Live WebSocket Signal feed showing incoming intelligence.
+  - Center Panel: Interactive Map showing real-time crisis severities and the Scenario runner.
+  - Right Panel: Agentic Action response protocols, Agent traces, and Timeline Simulations.
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -331,6 +344,14 @@
         .bar-fill.after { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 10px rgba(34, 197, 94, 0.5); }
         .bar-value { font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; font-weight: 700; width: 35px; text-align: right; }
 
+        /* Phase 4 Styles */
+        .settings-panel { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid var(--panel-border); }
+        .scenario-row { display: flex; gap: 8px; flex-wrap: wrap; }
+        .scenario-btn { background: rgba(59, 130, 246, 0.2); border: 1px solid var(--accent); color: white; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; transition: all 0.2s; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+        .scenario-btn:hover { background: var(--accent); }
+        .reset-btn { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--critical); color: white; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; margin-left: auto; text-transform: uppercase; letter-spacing: 0.5px; }
+        .reset-btn:hover { background: var(--critical); }
+
     </style>
 </head>
 <body>
@@ -361,6 +382,22 @@
         <!-- Center Panel: Map & Analysis Form -->
         <div class="panel">
             <div class="panel-title">Situation Analysis & Mapping</div>
+            
+            <!-- Phase 4: Settings & Scenarios -->
+            <details class="settings-panel">
+                <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">⚙️ Configuration & Demo Runner</summary>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px; margin-bottom: 12px;">
+                    <label style="font-size: 0.8rem; color: var(--text-muted);">API URL:</label>
+                    <input type="text" id="api-url-input" class="form-control" style="padding: 6px 10px; font-size: 0.8rem; height: auto;" value="https://ciro-backend-152360063189.asia-south1.run.app">
+                    <button class="btn" style="padding: 6px 12px; font-size: 0.8rem; width: auto;" onclick="updateApiUrl()">Save</button>
+                </div>
+                <div class="scenario-row">
+                    <button class="scenario-btn" onclick="runScenario('A')">Scenario A: Flood</button>
+                    <button class="scenario-btn" onclick="runScenario('B')">Scenario B: Accident</button>
+                    <button class="scenario-btn" onclick="runScenario('C')">Scenario C: Outage</button>
+                    <button class="reset-btn" onclick="resetDashboard()">Reset Dashboard</button>
+                </div>
+            </details>
             
             <div class="form-group">
                 <label>Crisis Report Intelligence</label>
@@ -454,8 +491,15 @@
         // Clock functionality
         setInterval(() => { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false }); }, 1000);
 
-        const API_BASE = 'http://localhost:8000';
-        const WS_URL = 'ws://localhost:8000/ws/signals';
+        let API_BASE = 'https://ciro-backend-152360063189.asia-south1.run.app';
+        let WS_URL = API_BASE.replace('http', 'ws').replace('https', 'wss') + '/ws/signals';
+
+        function updateApiUrl() {
+            API_BASE = document.getElementById('api-url-input').value;
+            WS_URL = API_BASE.replace('http', 'ws').replace('https', 'wss') + '/ws/signals';
+            if (socket) socket.close();
+            connectWebSocket();
+        }
         let zoneDataMap = {}; 
         let socket;
 
@@ -835,6 +879,53 @@
                     }
                 }
             }
+        // Phase 4: Scenario Runner
+        let currentEventSource = null;
+        function runScenario(scenarioId) {
+            resetDashboard();
+            if (currentEventSource) currentEventSource.close();
+            
+            const btn = event.currentTarget;
+            const origText = btn.innerText;
+            btn.innerText = 'Running...';
+            
+            currentEventSource = new EventSource(`${API_BASE}/api/demo/run-scenario/${scenarioId}`);
+            
+            currentEventSource.addEventListener('scenario_start', (e) => {
+                console.log('Scenario Started:', e.data);
+            });
+            
+            currentEventSource.addEventListener('signal', (e) => {
+                const payload = JSON.parse(e.data);
+                addLiveSignal(payload.signal);
+            });
+            
+            currentEventSource.addEventListener('scenario_complete', (e) => {
+                console.log('Scenario Complete:', e.data);
+                currentEventSource.close();
+                btn.innerText = origText;
+            });
+            
+            currentEventSource.onerror = (err) => {
+                console.error("SSE Error:", err);
+                currentEventSource.close();
+                btn.innerText = origText;
+            };
+        }
+        
+        function resetDashboard() {
+            document.getElementById('signal-feed').innerHTML = '';
+            document.getElementById('actions-container').innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px;">Awaiting AI anomaly detection to generate response protocols.</div>';
+            document.getElementById('reasoning-steps').innerHTML = '';
+            document.getElementById('agent-reasoning').style.display = 'none';
+            document.getElementById('timeline-log').innerHTML = '<div class="timeline-line"></div><div style="color: var(--text-muted); text-align: center; margin-top: 20px; font-style: italic;" id="timeline-empty">System standing by for simulation execution.</div>';
+            document.getElementById('zone-info-panel').innerHTML = 'Awaiting live detection events.';
+            zoneDataMap = {};
+            document.querySelectorAll('.map-zone').forEach(el => {
+                el.style.fill = 'var(--map-inactive)';
+                el.style.filter = 'none';
+            });
+            document.querySelectorAll('text[id^="resolved-"]').forEach(el => el.remove());
         }
     </script>
 </body>
