@@ -663,7 +663,7 @@
                             <span class="badge ${priorityClass}">Priority ${action.priority}</span>
                         </div>
                         <div class="action-desc">${action.description}</div>
-                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.crisis_id}', '${action.type}')">Execute Simulation</button>
+                        <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.crisis_id}', '${action.type}', '${crisis.location}')">Execute Simulation</button>
                     </div>
                 `;
             });
@@ -690,7 +690,7 @@
         }
 
         // Phase 3: Visual Timeline Simulation
-        async function simulateAction(actionId, crisisId, actionType) {
+        async function simulateAction(actionId, crisisId, actionType, location) {
             const timeline = document.getElementById('timeline-log');
             const emptyMsg = document.getElementById('timeline-empty');
             if(emptyMsg) emptyMsg.style.display = 'none';
@@ -718,7 +718,11 @@
                 <div class="timeline-item">
                     <div class="timeline-dot"></div>
                     <div class="timeline-time">${time}</div>
-                    <div class="timeline-title">EXECUTED: ${actionId}</div>
+                    <div class="timeline-title">EXECUTED: <b>${actionType ? actionType.toUpperCase() : actionId}</b></div>
+                    <div style="font-size: 0.85rem; margin-bottom: 10px;">
+                        <span style="background: rgba(239,68,68,0.2); color: #fca5a5; padding: 2px 6px; border-radius: 4px;">Before (Critical)</span> 
+                        &#8594; <span style="background: rgba(34,197,94,0.2); color: #86efac; padding: 2px 6px; border-radius: 4px;">After (Resolved)</span>
+                    </div>
                     
                     <div class="impact-bars">
                         <div class="bar-row">
@@ -736,10 +740,39 @@
             `;
             timeline.insertAdjacentHTML('afterbegin', html);
             
+            // Scroll into view
+            const newItem = timeline.firstElementChild;
+            if(newItem) newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            
             setTimeout(() => {
                 document.getElementById(`b-${actionId}`).style.width = `${beforeVal}%`;
                 document.getElementById(`a-${actionId}`).style.width = `${afterVal}%`;
             }, 100);
+
+            // CRITICAL before/after visual: Update SVG zone rect fill to #27AE60
+            if (location) {
+                const zoneRect = document.getElementById(`zone-${location}`);
+                if (zoneRect) {
+                    zoneRect.style.transition = 'fill 1s ease';
+                    zoneRect.style.fill = '#27AE60';
+                    zoneRect.style.filter = 'drop-shadow(0 0 15px rgba(39, 174, 96, 0.6))';
+                    
+                    // Add 'Resolved' label
+                    const existingLabel = document.getElementById(`resolved-${location}`);
+                    if (!existingLabel) {
+                        const svg = document.querySelector('svg.map');
+                        const bbox = zoneRect.getBBox();
+                        const newText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        newText.setAttribute("id", `resolved-${location}`);
+                        newText.setAttribute("x", bbox.x + bbox.width/2);
+                        newText.setAttribute("y", bbox.y + bbox.height/2 + 20); 
+                        newText.setAttribute("class", "map-label");
+                        newText.setAttribute("style", "fill: #4ade80; font-size: 13px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.8);");
+                        newText.textContent = "RESOLVED";
+                        svg.appendChild(newText);
+                    }
+                }
+            }
         }
     </script>
 </body>
