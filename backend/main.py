@@ -14,6 +14,7 @@ Endpoints:
 import sys
 import os
 import uuid
+import random
 from datetime import datetime
 
 # Add parent directory to path so we can import shared.models
@@ -21,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from shared.models import (
@@ -47,6 +49,14 @@ app = FastAPI(
         "Sensor → Analyst → Coordinator → Simulator."
     ),
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -180,40 +190,70 @@ async def get_actions(request: ActionsRequest):
 async def simulate_action(request: SimulateRequest):
     """Simulate execution of a response action using ActionSimulator."""
     simulator = ActionSimulator()
-    
-    if "Traffic Reroute" in request.action_type:
-        result = await simulator.simulate_traffic_reroute("Affected Area", "Alternate Route")
-    elif "Emergency Dispatch" in request.action_type:
+    action_lower = request.action_type.lower()
+
+    if any(kw in action_lower for kw in ["traffic", "reroute", "route", "divert", "redirect"]):
+        result = await simulator.simulate_traffic_reroute("Affected Area", "Kashmir Highway Alternate")
+    elif any(kw in action_lower for kw in ["dispatch", "emergency", "rescue", "ndma", "fire", "ambulance"]):
         result = await simulator.simulate_emergency_dispatch("Affected Area")
-    elif "Citizen Alert" in request.action_type:
+    elif any(kw in action_lower for kw in ["alert", "notify", "notification", "citizen", "public", "broadcast"]):
         result = await simulator.simulate_citizen_alert("Affected Area")
     else:
-        # Fallback simulation
-        result = await simulator.simulate_traffic_reroute("Unknown Location", "Default Route")
-        
+        # Fallback to traffic reroute as most common action
+        result = await simulator.simulate_traffic_reroute("Affected Area", "Margalla Road Alternate")
+
     # Override action_id with request's action_id
     result.action_id = request.action_id
-
     return {"simulation_result": result.model_dump()}
+
+
+@app.get("/api/health")
+async def health_check():
+    """Quick health probe used by the dashboard and CI."""
+    return {"status": "ok", "service": "CIRO", "timestamp": datetime.now().isoformat()}
 
 
 # ------------------------------------------------------------------ #
 # Phase 3: WebSockets & Logs
 # ------------------------------------------------------------------ #
 
+# Realistic Islamabad crisis signals for WebSocket live feed
+REALISTIC_SIGNALS = [
+    {"text": "G-10 mein pani bhar gaya hai, gaariyan phans gayi hain!", "crisis_type": "flood",    "severity": 5},
+    {"text": "G-10 nala overflow ho gaya, bohot pani aa raha hai",       "crisis_type": "flood",    "severity": 4},
+    {"text": "G-10 mein thodi baarish ke baad sadkon pe pani jam gaya",  "crisis_type": "flood",    "severity": 2},
+    {"text": "F-8 mein bari car crash, ambulance immediately chahiye!",   "crisis_type": "accident", "severity": 5},
+    {"text": "F-8 pe seriously injured hain log, rescue team bulao",       "crisis_type": "accident", "severity": 4},
+    {"text": "F-8 pe traffic jam lag gaya, accident ki wajah se",          "crisis_type": "accident", "severity": 3},
+    {"text": "Blue Area mein bijli nahi hai, offices band ho rahe hain",   "crisis_type": "outage",   "severity": 3},
+    {"text": "Blue Area transformer blast hua, power completely off",      "crisis_type": "outage",   "severity": 5},
+    {"text": "Blue Area mein bijli thodi wapas aayi, kuch sectors live",   "crisis_type": "outage",   "severity": 2},
+    {"text": "G-11 mein traffic jam lag gaya, Margalla Road block hai",    "crisis_type": "traffic",  "severity": 3},
+    {"text": "I-8 mein signal system kharab hai, bohot delay ho rahi hai", "crisis_type": "traffic",  "severity": 2},
+    {"text": "G-11 mein construction site pe accident hua, area seal",     "crisis_type": "accident", "severity": 3},
+    {"text": "I-8 mein gas leak report hua, log area khali kar rahe hain", "crisis_type": "fire",     "severity": 4},
+    {"text": "F-8 mein smoke reported near market, fire brigade alert",    "crisis_type": "fire",     "severity": 3},
+    {"text": "G-10 mein halki baarish, roads thodi slippery hain",         "crisis_type": "flood",    "severity": 1},
+]
+
+SOURCES = ["social_media", "citizen_report", "sensor_net", "field_officer", "weather_api"]
+
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
-    """WebSocket endpoint that broadcasts a mock live signal every 5 seconds.
-    Used for dashboard live feeds.
-    """
+    """WebSocket endpoint that broadcasts a realistic live crisis signal every 5 seconds."""
     await websocket.accept()
     try:
         while True:
+            sig = random.choice(REALISTIC_SIGNALS)
+            location = random.choice(["G-10", "G-11", "F-8", "I-8", "Blue Area"])
             mock_signal = {
-                "id": str(uuid.uuid4())[:8],
-                "text": f"Live incoming signal stream: {datetime.now().strftime('%H:%M:%S')}",
-                "source": "live_feed",
-                "timestamp": datetime.now().isoformat()
+                "id":         str(uuid.uuid4())[:8],
+                "text":       sig["text"],
+                "source":     random.choice(SOURCES),
+                "location":   location,
+                "crisis_type": sig["crisis_type"],
+                "severity":   sig["severity"],
+                "timestamp":  datetime.now().isoformat()
             }
             await websocket.send_json(mock_signal)
             await asyncio.sleep(5)
