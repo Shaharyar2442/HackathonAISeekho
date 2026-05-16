@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'api_service.dart';
@@ -39,6 +40,7 @@ class CIROApp extends StatelessWidget {
       routes: {
         '/': (context) => const MainScreen(),
         '/response': (context) => const ResponseScreen(),
+        '/simulate': (context) => const ActionSimulationScreen(),
       },
     );
   }
@@ -555,12 +557,173 @@ class ResponseScreen extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: FilledButton.tonal(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Simulation initiated...')));
+                Navigator.pushNamed(context, '/simulate', arguments: {'title': title, 'priorityText': priorityText});
               },
               child: const Text('Simulate Action'),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class ActionSimulationScreen extends StatefulWidget {
+  const ActionSimulationScreen({Key? key}) : super(key: key);
+
+  @override
+  State<ActionSimulationScreen> createState() => _ActionSimulationScreenState();
+}
+
+class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
+  int _currentStep = 0;
+  bool _isComplete = false;
+  final List<String> _logs = [];
+  Map<String, dynamic>? _result;
+  late StreamSubscription _subscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _startMockSimulation();
+  }
+
+  void _startMockSimulation() {
+    // Mocking the web_socket_channel stream that will eventually come from FastAPI
+    final mockStream = Stream.periodic(const Duration(seconds: 2), (i) {
+      switch (i) {
+        case 0: return {'step': 0, 'log': '[Simulator] Initializing physical environment...'};
+        case 1: return {'step': 1, 'log': '[Simulator] Snapshotting "Before" state (congestion: 85%).'};
+        case 2: return {'step': 2, 'log': '[Simulator] Applying action resources... mapping traffic...'};
+        case 3: return {'step': 2, 'log': '[Simulator] Simulating crowd movement for 30 ticks...'};
+        case 4: return {'step': 3, 'log': '[Simulator] Evaluating outcome... calculating metrics.'};
+        case 5: return {
+            'step': 3, 
+            'log': '[Simulator] Simulation completed successfully.',
+            'result': {'success_rate': 0.88, 'after_state': {'congestion': '40%'}}
+          };
+        default: return null;
+      }
+    }).take(6);
+
+    _subscription = mockStream.listen((event) {
+      if (event == null || !mounted) return;
+      
+      setState(() {
+        if (event['log'] != null) _logs.add(event['log']);
+        if (event['step'] != null) _currentStep = event['step'] as int;
+        if (event['result'] != null) {
+          _result = event['result'];
+          _isComplete = true;
+        }
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final Map<String, dynamic>? args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final String actionTitle = args?['title'] ?? 'Unknown Action';
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Action Simulation')),
+      body: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16.0),
+            color: colorScheme.primaryContainer.withOpacity(0.3),
+            child: Row(
+              children: [
+                Icon(Icons.science, color: colorScheme.primary, size: 28),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Simulating:', style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant)),
+                      Text(actionTitle, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: colorScheme.primary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Stepper(
+              currentStep: _currentStep,
+              controlsBuilder: (context, details) => const SizedBox.shrink(),
+              steps: [
+                Step(
+                  title: const Text('Initialization'),
+                  content: const Text('Connecting to Simulator Agent...'),
+                  state: _currentStep > 0 ? StepState.complete : StepState.editing,
+                  isActive: _currentStep >= 0,
+                ),
+                Step(
+                  title: const Text('State Capture'),
+                  content: const Text('Capturing before-state environment...'),
+                  state: _currentStep > 1 ? StepState.complete : (_currentStep == 1 ? StepState.editing : StepState.indexed),
+                  isActive: _currentStep >= 1,
+                ),
+                Step(
+                  title: const Text('Execution'),
+                  content: const Text('Applying action logic and running ticks...'),
+                  state: _currentStep > 2 ? StepState.complete : (_currentStep == 2 ? StepState.editing : StepState.indexed),
+                  isActive: _currentStep >= 2,
+                ),
+                Step(
+                  title: const Text('Evaluation'),
+                  content: _isComplete 
+                    ? Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check_circle, color: Colors.green),
+                            const SizedBox(width: 8),
+                            Text('Success Rate: ${((_result?['success_rate'] ?? 0) * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                          ],
+                        ),
+                      )
+                    : const Text('Calculating final metrics...'),
+                  state: _isComplete ? StepState.complete : (_currentStep == 3 ? StepState.editing : StepState.indexed),
+                  isActive: _currentStep >= 3,
+                ),
+              ],
+            ),
+          ),
+          Container(
+            height: 200,
+            padding: const EdgeInsets.all(16.0),
+            color: colorScheme.surfaceContainerHighest,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Live Agent Trace', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                const Divider(),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _logs.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2.0),
+                        child: Text(_logs[index], style: TextStyle(fontFamily: 'monospace', fontSize: 12, color: colorScheme.onSurfaceVariant)),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
