@@ -502,6 +502,7 @@
         }
         let zoneDataMap = {}; 
         let socket;
+        let isScenarioRunning = false;
 
         // Phase 3: Live WebSocket Integration
         function connectWebSocket() {
@@ -518,6 +519,7 @@
             };
             
             socket.onmessage = (event) => {
+                if (isScenarioRunning) return; // Block random background signals during scenario
                 try {
                     const data = JSON.parse(event.data);
                     if (data.location && data.crisis_type && data.severity) {
@@ -884,11 +886,20 @@
         let currentEventSource = null;
         function runScenario(scenarioId) {
             resetDashboard();
+            isScenarioRunning = true;
             if (currentEventSource) currentEventSource.close();
             
             const btn = event.currentTarget;
             const origText = btn.innerText;
             btn.innerText = 'Running...';
+            
+            // Auto-configure the AI form based on scenario
+            const typeSelect = document.getElementById('crisis-type');
+            const zoneSelect = document.getElementById('crisis-zone');
+            if (scenarioId === 'A') { typeSelect.value = 'flood'; zoneSelect.value = 'G-10'; }
+            if (scenarioId === 'B') { typeSelect.value = 'accident'; zoneSelect.value = 'F-8'; }
+            if (scenarioId === 'C') { typeSelect.value = 'outage'; zoneSelect.value = 'Blue Area'; }
+            document.getElementById('crisis-text').value = '';
             
             currentEventSource = new EventSource(`${API_BASE}/api/demo/run-scenario/${scenarioId}`);
             
@@ -899,12 +910,22 @@
             currentEventSource.addEventListener('signal', (e) => {
                 const payload = JSON.parse(e.data);
                 addLiveSignal(payload.signal);
+                
+                // Append text to the form automatically
+                const textEl = document.getElementById('crisis-text');
+                textEl.value += (textEl.value ? '\n' : '') + payload.signal.text;
             });
             
             currentEventSource.addEventListener('scenario_complete', (e) => {
                 console.log('Scenario Complete:', e.data);
                 currentEventSource.close();
                 btn.innerText = origText;
+                
+                // Automatically run the AI Analysis
+                setTimeout(() => {
+                    analyzeCrisis();
+                    isScenarioRunning = false; // Restore normal background signals
+                }, 1000);
             });
             
             currentEventSource.onerror = (err) => {
