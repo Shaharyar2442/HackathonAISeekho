@@ -1,4 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'api_service.dart';
@@ -253,25 +257,87 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class MapScreen extends StatelessWidget {
+class MapScreen extends StatefulWidget {
   const MapScreen({Key? key}) : super(key: key);
 
   @override
+  State<MapScreen> createState() => _MapScreenState();
+}
+
+class _MapScreenState extends State<MapScreen> {
+  late WebSocketChannel _channel;
+  final List<String> _liveSignals = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Connect to backend WebSocket for live dashboard feed
+    _channel = WebSocketChannel.connect(Uri.parse('ws://10.0.2.2:8000/ws/signals'));
+    _channel.stream.listen((message) {
+      if (!mounted) return;
+      final data = jsonDecode(message);
+      setState(() {
+        _liveSignals.insert(0, data['text']);
+        if (_liveSignals.length > 5) _liveSignals.removeLast(); // keep only last 5
+      });
+    }, onError: (e) {
+      print("WebSocket error: $e");
+    });
+  }
+
+  @override
+  void dispose() {
+    _channel.sink.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      /*
-      appBar: AppBar(
-        title: const Text('Live Crisis Map'),
-      ),
-      */
+    return Scaffold(
       body: SafeArea(
-        child: GoogleMap(
-          myLocationButtonEnabled: true,
-          zoomControlsEnabled: false,
-          initialCameraPosition: CameraPosition(
-            target: LatLng(33.6844, 73.0479),
-            zoom: 12.0,
-          ),
+        child: Stack(
+          children: [
+            const GoogleMap(
+              myLocationButtonEnabled: true,
+              zoomControlsEnabled: false,
+              initialCameraPosition: CameraPosition(
+                target: LatLng(33.6844, 73.0479),
+                zoom: 12.0,
+              ),
+            ),
+            if (_liveSignals.isNotEmpty)
+              Positioned(
+                top: 16,
+                left: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.sensors, color: Theme.of(context).colorScheme.primary, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Live Signal Feed', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ..._liveSignals.map((s) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4.0),
+                        child: Text(s, style: Theme.of(context).textTheme.bodySmall),
+                      )).toList(),
+                    ],
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -582,42 +648,65 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
   Map<String, dynamic>? _result;
   late StreamSubscription _subscription;
 
+  bool _initialized = false;
+
   @override
-  void initState() {
-    super.initState();
-    _startMockSimulation();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+      final String actionTitle = args?['title'] ?? 'Unknown Action';
+      _startSimulation(actionTitle);
+    }
   }
 
-  void _startMockSimulation() {
-    // Mocking the web_socket_channel stream that will eventually come from FastAPI
-    final mockStream = Stream.periodic(const Duration(seconds: 2), (i) {
-      switch (i) {
-        case 0: return {'step': 0, 'log': '[Simulator] Initializing physical environment...'};
-        case 1: return {'step': 1, 'log': '[Simulator] Snapshotting "Before" state (congestion: 85%).'};
-        case 2: return {'step': 2, 'log': '[Simulator] Applying action resources... mapping traffic...'};
-        case 3: return {'step': 2, 'log': '[Simulator] Simulating crowd movement for 30 ticks...'};
-        case 4: return {'step': 3, 'log': '[Simulator] Evaluating outcome... calculating metrics.'};
-        case 5: return {
-            'step': 3, 
-            'log': '[Simulator] Simulation completed successfully.',
-            'result': {'success_rate': 0.88, 'after_state': {'congestion': '40%'}}
-          };
-        default: return null;
-      }
-    }).take(6);
-
-    _subscription = mockStream.listen((event) {
-      if (event == null || !mounted) return;
-      
+  void _startSimulation(String actionTitle) async {
+    try {
       setState(() {
-        if (event['log'] != null) _logs.add(event['log']);
-        if (event['step'] != null) _currentStep = event['step'] as int;
-        if (event['result'] != null) {
-          _result = event['result'];
-          _isComplete = true;
-        }
+        _logs.add('[Simulator] Connecting to Backend Simulator...');
       });
-    });
+      // 1. Call the real FastAPI simulation endpoint
+      final data = await ApiService.simulateAction(actionTitle, 'act_123');
+      final result = data['simulation_result'];
+      final execLogs = List<String>.from(result['execution_log'] ?? []);
+
+      // 2. Animate the logs into the UI
+      final eventStream = Stream.periodic(const Duration(seconds: 1), (i) {
+        if (i < execLogs.length) {
+          int step = i < (execLogs.length / 2) ? 1 : 2;
+          return {'step': step, 'log': execLogs[i]};
+        } else if (i == execLogs.length) {
+          return {
+            'step': 3,
+            'log': '[Simulator] Simulation completed successfully.',
+            'result': {
+              'success_rate': 0.88, // static for effect
+              'after_state': result['after_state'],
+            }
+          };
+        }
+        return null;
+      }).take(execLogs.length + 1);
+
+      _subscription = eventStream.listen((event) {
+        if (event == null || !mounted) return;
+        setState(() {
+          if (event['log'] != null) _logs.add(event['log']);
+          if (event['step'] != null) _currentStep = event['step'] as int;
+          if (event['result'] != null) {
+            _result = event['result'];
+            _isComplete = true;
+          }
+        });
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _logs.add('[Error] Simulation failed: $e');
+        });
+      }
+    }
   }
 
   @override

@@ -39,4 +39,17 @@ class ApiService {
     final data = jsonDecode(detectRes.body);
     return data as Map<String, dynamic>;
   }
+
+  static Future<Map<String, dynamic>> simulateAction(String actionType, String actionId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/simulate'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'action_id': actionId,
+        'action_type': actionType,
+      }),
+    );
+    if (res.statusCode != 200) throw Exception('Failed to simulate');
+    return jsonDecode(res.body);
+  }
 }
