@@ -604,14 +604,16 @@
             banner.style.display = 'none';
 
             try {
+                const signalPayload = { signals: [{ text: text, location: location, type: type }] };
+
                 // 1. Ingest
                 const ingestRes = await fetch(`${API_BASE}/api/ingest`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, location, type})
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(signalPayload)
                 });
                 
                 // 2. Detect
                 const response = await fetch(`${API_BASE}/api/detect`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(signalPayload)
                 });
                 
                 if(!response.ok) throw new Error("API failed");
@@ -705,7 +707,7 @@
 
             try {
                 const response = await fetch(`${API_BASE}/api/simulate`, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action_id: actionId, crisis_id: crisisId})
+                    method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({action_id: actionId, action_type: actionType})
                 });
                 if(response.ok) {
                     const data = await response.json();
