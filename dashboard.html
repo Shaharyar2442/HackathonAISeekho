@@ -492,11 +492,11 @@
         setInterval(() => { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false }); }, 1000);
 
         let API_BASE = 'https://ciro-backend-152360063189.asia-south1.run.app';
-        let WS_URL = API_BASE.replace('http', 'ws').replace('https', 'wss') + '/ws/signals';
+        let WS_URL = API_BASE.startsWith('https') ? API_BASE.replace('https', 'wss') + '/ws/signals' : API_BASE.replace('http', 'ws') + '/ws/signals';
 
         function updateApiUrl() {
             API_BASE = document.getElementById('api-url-input').value;
-            WS_URL = API_BASE.replace('http', 'ws').replace('https', 'wss') + '/ws/signals';
+            WS_URL = API_BASE.startsWith('https') ? API_BASE.replace('https', 'wss') + '/ws/signals' : API_BASE.replace('http', 'ws') + '/ws/signals';
             if (socket) socket.close();
             connectWebSocket();
         }
