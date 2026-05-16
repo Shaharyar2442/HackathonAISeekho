@@ -4,20 +4,24 @@ import 'package:http/http.dart' as http;
 class ApiService {
   // Using 10.0.2.2 which is the special alias to your host loopback interface from the Android emulator.
   // If testing on a physical device, this should be your computer's local network IP (e.g., 192.168.x.x).
-  static const String baseUrl = 'http://10.0.2.2:8000/api';
+  static const String baseUrl = 'http://10.188.25.60:8000/api';
 
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type) async {
+    final signalData = {
+      'text': text,
+      'location': location,
+      'crisis_type': type,
+      'severity': 3, // Defaulting severity for raw ingestion
+      'source': 'user_report',
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+
     // 1. Ingest Signal
     final ingestRes = await http.post(
       Uri.parse('$baseUrl/ingest'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'text': text,
-        'location': location,
-        'crisis_type': type,
-        'severity': 3, // Defaulting severity for raw ingestion
-        'source': 'user_report',
-        'timestamp': DateTime.now().toIso8601String(),
+        'signals': [signalData]
       }),
     );
 
@@ -30,6 +34,9 @@ class ApiService {
     final detectRes = await http.post(
       Uri.parse('$baseUrl/detect'),
       headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'signals': [signalData]
+      }),
     );
 
     if (detectRes.statusCode != 200) {

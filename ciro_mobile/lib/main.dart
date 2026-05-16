@@ -272,7 +272,7 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     // Connect to backend WebSocket for live dashboard feed
-    _channel = WebSocketChannel.connect(Uri.parse('ws://10.0.2.2:8000/ws/signals'));
+    _channel = WebSocketChannel.connect(Uri.parse('ws://10.188.25.60:8000/ws/signals'));
     _channel.stream.listen((message) {
       if (!mounted) return;
       final data = jsonDecode(message);
