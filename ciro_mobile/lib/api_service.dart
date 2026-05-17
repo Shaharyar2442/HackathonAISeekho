@@ -1,16 +1,19 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  // Using 10.0.2.2 which is the special alias to your host loopback interface from the Android emulator.
-  // If testing on a physical device, this should be your computer's local network IP (e.g., 192.168.x.x).
-  static const String baseUrl = 'http://10.188.25.60:8000/api';
+  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type) async {
+    // Map dropdown UI values to backend expected keys
+    String backendType = type.toLowerCase();
+    if (backendType == 'power outage') backendType = 'outage';
+
     final signalData = {
       'text': text,
       'location': location,
-      'crisis_type': type,
+      'crisis_type': backendType,
       'severity': 3, // Defaulting severity for raw ingestion
       'source': 'user_report',
       'timestamp': DateTime.now().toIso8601String(),

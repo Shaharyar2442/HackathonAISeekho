@@ -5,10 +5,38 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'api_service.dart';
 
-void main() {
-  runApp(const CIROApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Error loading .env in main: $e");
+  }
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const CIROApp(),
+    ),
+  );
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
+  }
 }
 
 class CIROApp extends StatelessWidget {
@@ -19,7 +47,7 @@ class CIROApp extends StatelessWidget {
     return MaterialApp(
       title: 'CIRO',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: context.watch<ThemeProvider>().themeMode,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF1A73E8), // Google Blue
@@ -40,12 +68,183 @@ class CIROApp extends StatelessWidget {
           scrolledUnderElevation: 0,
         ),
       ),
-      initialRoute: '/',
+      initialRoute: '/splash',
       routes: {
+        '/splash': (context) => const SplashScreen(),
         '/': (context) => const MainScreen(),
         '/response': (context) => const ResponseScreen(),
         '/simulate': (context) => const ActionSimulationScreen(),
       },
+    );
+  }
+}
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    );
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.2, 1.0, curve: Curves.easeIn)),
+    );
+
+    _controller.forward();
+    _initializeApp();
+  }
+
+  Future<void> _initializeApp() async {
+    final startTime = DateTime.now();
+    
+    // dotenv is now loaded in main()
+
+    // Ensure splash is visible for at least 2.5 seconds for branding and premium feel
+    final elapsedTime = DateTime.now().difference(startTime);
+    final remainingDelay = const Duration(milliseconds: 2500) - elapsedTime;
+    
+    if (remainingDelay > Duration.zero) {
+      await Future.delayed(remainingDelay);
+    }
+
+    if (mounted) {
+      // Custom smooth transition to MainScreen
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (context, animation, secondaryAnimation) => const MainScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          transitionDuration: const Duration(milliseconds: 600),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
+    return Scaffold(
+      backgroundColor: theme.colorScheme.surface,
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Centered Logo & Brand
+            Center(
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  return Transform.scale(
+                    scale: _scaleAnimation.value,
+                    child: Opacity(
+                      opacity: _fadeAnimation.value,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Premium container for the logo with smooth drop shadow
+                    Container(
+                      height: 160,
+                      width: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.colorScheme.primaryContainer,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 24,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.all(12),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      'CIRO',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2.0,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Bottom branding info
+            Positioned(
+              bottom: 40,
+              left: 24,
+              right: 24,
+              child: FadeTransition(
+                opacity: _fadeAnimation,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Crisis Intelligence & Response Orchestrator',
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    // Minimal loading line
+                    SizedBox(
+                      width: 120,
+                      height: 2.5,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          color: theme.colorScheme.primary,
+                          backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -134,7 +333,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          )
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -246,8 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 icon: _isLoading 
                     ? Container(width: 20, height: 20, margin: const EdgeInsets.only(right: 8), child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.analytics_outlined),
-                label: Text(_isLoading ? 'Analyzing...' : 'Analyze Crisis', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    : const Icon(Icons.send_rounded),
+                label: Text(_isLoading ? 'Reporting...' : 'Report', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -265,30 +473,157 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late WebSocketChannel _channel;
-  final List<String> _liveSignals = [];
+  WebSocketChannel? _channel;
+  final List<Map<String, dynamic>> _liveSignals = [];
+  bool _wsConnected = false;
+  bool _locationGranted = false;
+  
+  int _signalCounter = 0;
+  final Map<String, BitmapDescriptor> _markerIcons = {};
+  final ScrollController _feedScrollController = ScrollController();
+
+  final Map<String, LatLng> _zoneCoordinates = {
+    'G-10': const LatLng(33.6738, 73.0135),
+    'G-11': const LatLng(33.6651, 72.9922),
+    'F-8': const LatLng(33.7082, 73.0374),
+    'I-8': const LatLng(33.6690, 73.0760),
+    'Blue Area': const LatLng(33.7225, 73.0805),
+  };
 
   @override
   void initState() {
     super.initState();
-    // Connect to backend WebSocket for live dashboard feed
-    _channel = WebSocketChannel.connect(Uri.parse('ws://10.188.25.60:8000/ws/signals'));
-    _channel.stream.listen((message) {
-      if (!mounted) return;
-      final data = jsonDecode(message);
+    _checkLocationPermission();
+    // Defer WebSocket connection to after the first frame so dotenv is guaranteed loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) => _connectWebSocket());
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.locationWhenInUse.request();
+    if (mounted) {
       setState(() {
-        _liveSignals.insert(0, data['text']);
-        if (_liveSignals.length > 5) _liveSignals.removeLast(); // keep only last 5
+        _locationGranted = status.isGranted;
       });
-    }, onError: (e) {
-      print("WebSocket error: $e");
-    });
+    }
+  }
+
+  Future<BitmapDescriptor> _createNumberedMarker(int number, Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    const double size = 100.0;
+    
+    final Paint paint = Paint()..color = color;
+    final Paint borderPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 6.0;
+    
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, borderPaint);
+    
+    final TextPainter painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    painter.text = TextSpan(
+      text: number.toString(),
+      style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+    );
+    painter.layout();
+    painter.paint(
+      canvas,
+      Offset((size - painter.width) / 2, (size - painter.height) / 2),
+    );
+    
+    final img = await pictureRecorder.endRecording().toImage(size.toInt(), size.toInt());
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(data!.buffer.asUint8List());
+  }
+
+  void _connectWebSocket() {
+    if (_wsConnected || !mounted) return;
+    try {
+      // Read from env; auto-convert http(s):// → ws(s):// if misconfigured
+      String wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
+      wsUrl = wsUrl
+          .replaceFirst('https://', 'wss://')
+          .replaceFirst('http://', 'ws://');
+
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsConnected = true;
+      _channel!.stream.listen((message) {
+        if (!mounted) return;
+        final data = jsonDecode(message);
+        if (data is Map<String, dynamic>) {
+          _signalCounter++;
+          final currentNumber = _signalCounter;
+          data['number'] = currentNumber;
+          final signalId = data['text'] ?? currentNumber.toString();
+          
+          final locName = data['location'] as String?;
+          final baseLatLng = _zoneCoordinates[locName];
+          if (baseLatLng != null) {
+            final random = math.Random();
+            // Disperse by roughly ~300 meters randomly
+            data['computed_latlng'] = LatLng(
+              baseLatLng.latitude + (random.nextDouble() - 0.5) * 0.005,
+              baseLatLng.longitude + (random.nextDouble() - 0.5) * 0.005,
+            );
+          }
+          
+          _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
+            if (mounted) {
+              setState(() {
+                _markerIcons[signalId] = icon;
+              });
+            }
+          });
+
+          setState(() {
+            _liveSignals.insert(0, data);
+          });
+        }
+      }, onError: (e) {
+        print("WebSocket error: $e");
+      });
+    } catch (e) {
+      print("WebSocket connect error: $e");
+    }
   }
 
   @override
   void dispose() {
-    _channel.sink.close();
+    _channel?.sink.close();
+    _feedScrollController.dispose();
     super.dispose();
+  }
+
+  Color _getSignalColor(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return Colors.red;
+    if (severity == 3) return Colors.orange;
+    return Colors.blue;
+  }
+
+  double _getMarkerHue(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return BitmapDescriptor.hueRed;
+    if (severity == 3) return BitmapDescriptor.hueOrange;
+    return BitmapDescriptor.hueAzure;
+  }
+
+  Set<Marker> _buildMarkers() {
+    return _liveSignals.map((signal) {
+      final latLng = signal['computed_latlng'] as LatLng? ?? _zoneCoordinates[signal['location']];
+      if (latLng == null) return null;
+      
+      return Marker(
+        markerId: MarkerId(signal['text'] ?? DateTime.now().toString()),
+        position: latLng,
+        infoWindow: InfoWindow(
+          title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
+          snippet: signal['text'] ?? '',
+        ),
+        icon: _markerIcons[signal['text'] ?? signal['number'].toString()] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+      );
+    }).whereType<Marker>().toSet();
   }
 
   @override
@@ -297,12 +632,16 @@ class _MapScreenState extends State<MapScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const GoogleMap(
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(33.6844, 73.0479),
-                zoom: 12.0,
+            Positioned.fill(
+              child: GoogleMap(
+                myLocationButtonEnabled: true,
+                myLocationEnabled: _locationGranted,
+                zoomControlsEnabled: false,
+                initialCameraPosition: const CameraPosition(
+                  target: LatLng(33.6844, 73.0479),
+                  zoom: 12.0,
+                ),
+                markers: _buildMarkers(),
               ),
             ),
             if (_liveSignals.isNotEmpty)
@@ -329,10 +668,49 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      ..._liveSignals.map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4.0),
-                        child: Text(s, style: Theme.of(context).textTheme.bodySmall),
-                      )).toList(),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        child: Scrollbar(
+                          controller: _feedScrollController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _feedScrollController,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _liveSignals.map((s) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4, right: 8),
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Text(
+                                    '#${s['number'] ?? '-'} ',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      s['text'] ?? 'Unknown signal', 
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                  ),
+                                ],
+                              ),
+                              )).toList(),
+                            ),
+                          ),
+                        ),
+                      )
                     ],
                   ),
                 ),
@@ -811,6 +1189,46 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
+      body: ListView(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('System Default'),
+            value: ThemeMode.system,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Light Theme'),
+            value: ThemeMode.light,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Dark Theme'),
+            value: ThemeMode.dark,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
           ),
         ],
       ),
