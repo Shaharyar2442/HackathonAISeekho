@@ -497,6 +497,20 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
+  Color _getSignalColor(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return Colors.red;
+    if (severity == 3) return Colors.orange;
+    return Colors.blue;
+  }
+
+  double _getMarkerHue(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return BitmapDescriptor.hueRed;
+    if (severity == 3) return BitmapDescriptor.hueOrange;
+    return BitmapDescriptor.hueAzure;
+  }
+
   Set<Marker> _buildMarkers() {
     return _liveSignals.map((signal) {
       final locName = signal['location'] as String?;
@@ -510,9 +524,7 @@ class _MapScreenState extends State<MapScreen> {
           title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
           snippet: signal['text'] ?? '',
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(
-          (signal['severity'] ?? 1) >= 4 ? BitmapDescriptor.hueRed : BitmapDescriptor.hueOrange,
-        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
       );
     }).whereType<Marker>().toSet();
   }
@@ -558,10 +570,37 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      ..._liveSignals.take(5).map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4.0),
-                        child: Text(s['text'] ?? 'Unknown signal', style: Theme.of(context).textTheme.bodySmall),
-                      )).toList(),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: _liveSignals.map((s) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4, right: 8),
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      s['text'] ?? 'Unknown signal', 
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )).toList(),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
