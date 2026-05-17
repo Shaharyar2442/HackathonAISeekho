@@ -5,7 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiService {
   static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
-  static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type) async {
+  static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type, {double? lat, double? lng}) async {
     // Map dropdown UI values to backend expected keys
     String backendType = type.toLowerCase();
     if (backendType == 'power outage') backendType = 'outage';
@@ -14,10 +14,12 @@ class ApiService {
       'text': text,
       'location': location,
       'crisis_type': backendType,
-      'severity': 3, // Defaulting severity for raw ingestion
       'source': 'user_report',
       'timestamp': DateTime.now().toIso8601String(),
     };
+    
+    if (lat != null) signalData['lat'] = lat;
+    if (lng != null) signalData['lng'] = lng;
 
     // 1. Ingest Signal
     final ingestRes = await http.post(

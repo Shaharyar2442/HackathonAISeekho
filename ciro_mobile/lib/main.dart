@@ -11,6 +11,9 @@ import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:ui' as ui;
 import 'dart:math' as math;
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:http/http.dart' as http;
 import 'api_service.dart';
 
 void main() async {
@@ -304,17 +307,85 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _reportController = TextEditingController();
-  String? selectedZone = 'G-10';
+  TextEditingController? _autoCompleteController;
+  
+  double? _selectedLat;
+  double? _selectedLng;
   String? selectedType = 'Flood';
   bool _isLoading = false;
   
-  final List<String> zones = ['G-10', 'G-11', 'F-8', 'I-8', 'Blue Area'];
   final List<String> types = ['Flood', 'Accident', 'Power Outage', 'Fire', 'Traffic'];
 
   @override
   void dispose() {
     _reportController.dispose();
     super.dispose();
+  }
+
+  Future<List<String>> _getPlacePredictions(String query) async {
+    final apiKey = dotenv.env['MAPS_API_KEY'] ?? '';
+    if (apiKey.isEmpty) return [];
+    
+    final url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?input=$query&key=$apiKey';
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final predictions = data['predictions'] as List;
+        return predictions.map((p) => p['description'] as String).toList();
+      }
+    } catch (e) {
+      debugPrint('Places API error: $e');
+    }
+    return [];
+  }
+
+  Future<void> _fetchCoordinatesFromAddress(String address) async {
+    try {
+      List<Location> locations = await locationFromAddress(address);
+      if (locations.isNotEmpty) {
+        _selectedLat = locations.first.latitude;
+        _selectedLng = locations.first.longitude;
+      }
+    } catch (e) {
+      debugPrint('Failed to get coordinates from address: $e');
+    }
+  }
+
+  Future<void> _detectLocation(TextEditingController controller) async {
+    setState(() => _isLoading = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permission denied');
+        }
+      }
+      
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      _selectedLat = position.latitude;
+      _selectedLng = position.longitude;
+      
+      List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+      if (placemarks.isNotEmpty) {
+        final place = placemarks.first;
+        // Clean up the address string
+        List<String> parts = [];
+        if (place.street != null && place.street!.isNotEmpty) parts.add(place.street!);
+        if (place.subLocality != null && place.subLocality!.isNotEmpty) parts.add(place.subLocality!);
+        if (place.locality != null && place.locality!.isNotEmpty) parts.add(place.locality!);
+        controller.text = parts.join(', ');
+      } else {
+        controller.text = '${position.latitude}, ${position.longitude}';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to get location: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -381,23 +452,43 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 20),
               Text(
-                'Zone',
+                'Location',
                 style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
               const SizedBox(height: 8),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  return DropdownMenu<String>(
-                    width: constraints.maxWidth,
-                    initialSelection: selectedZone,
-                    inputDecorationTheme: inputDecorationTheme,
-                    menuStyle: MenuStyle(
-                      shape: MaterialStateProperty.all(
-                        RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              Autocomplete<String>(
+                optionsBuilder: (TextEditingValue textEditingValue) async {
+                  if (textEditingValue.text.isEmpty) {
+                    return const Iterable<String>.empty();
+                  }
+                  return await _getPlacePredictions(textEditingValue.text);
+                },
+                onSelected: (String selection) {
+                  _fetchCoordinatesFromAddress(selection);
+                },
+                fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                  _autoCompleteController = textEditingController;
+                  return TextFormField(
+                    controller: textEditingController,
+                    focusNode: focusNode,
+                    onFieldSubmitted: (String value) {
+                      onFieldSubmitted();
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search address or tap auto-detect...',
+                      filled: true,
+                      fillColor: inputFillColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide.none,
+                      ),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.my_location),
+                        color: theme.colorScheme.primary,
+                        onPressed: () => _detectLocation(textEditingController),
+                        tooltip: 'Auto-detect location',
                       ),
                     ),
-                    dropdownMenuEntries: zones.map((zone) => DropdownMenuEntry(value: zone, label: zone)).toList(),
-                    onSelected: (val) => setState(() => selectedZone = val),
                   );
                 },
               ),
@@ -432,11 +523,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: _isLoading ? null : () async {
                   setState(() => _isLoading = true);
                   try {
-                    // Send to backend via ApiService
+                    String locText = _autoCompleteController?.text ?? '';
+                    if (locText.isEmpty) locText = 'Unknown Location';
+                    
                     final result = await ApiService.submitAndAnalyze(
                       _reportController.text.isEmpty ? 'Emergency situation observed.' : _reportController.text,
-                      selectedZone ?? 'G-10',
+                      locText,
                       selectedType ?? 'Flood',
+                      lat: _selectedLat,
+                      lng: _selectedLng,
                     );
                     if (!mounted) return;
                     Navigator.pushNamed(context, '/response', arguments: result);
