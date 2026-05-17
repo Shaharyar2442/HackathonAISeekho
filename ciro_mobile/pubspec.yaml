@@ -51,6 +51,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -58,6 +59,13 @@ flutter_launcher_icons:
   image_path: "logo.png"
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "logo.png"
+
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: "logo.png"
+  android_12:
+    image: "logo.png"
+    color: "#FFFFFF"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -70,9 +78,9 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
   assets:
     - .env
+    - logo.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
