@@ -313,6 +313,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
       ),
       body: SingleChildScrollView(
