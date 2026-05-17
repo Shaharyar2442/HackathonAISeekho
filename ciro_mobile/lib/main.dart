@@ -7,6 +7,9 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:ui' as ui;
 import 'api_service.dart';
 
 void main() async {
@@ -16,7 +19,23 @@ void main() async {
   } catch (e) {
     print("Error loading .env in main: $e");
   }
-  runApp(const CIROApp());
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const CIROApp(),
+    ),
+  );
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
+  }
 }
 
 class CIROApp extends StatelessWidget {
@@ -27,7 +46,7 @@ class CIROApp extends StatelessWidget {
     return MaterialApp(
       title: 'CIRO',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: context.watch<ThemeProvider>().themeMode,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF1A73E8), // Google Blue
@@ -315,6 +334,14 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          )
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -448,6 +475,10 @@ class _MapScreenState extends State<MapScreen> {
   WebSocketChannel? _channel;
   final List<Map<String, dynamic>> _liveSignals = [];
   bool _wsConnected = false;
+  bool _locationGranted = false;
+  
+  int _signalCounter = 0;
+  final Map<String, BitmapDescriptor> _markerIcons = {};
 
   final Map<String, LatLng> _zoneCoordinates = {
     'G-10': const LatLng(33.6738, 73.0135),
@@ -460,8 +491,48 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _checkLocationPermission();
     // Defer WebSocket connection to after the first frame so dotenv is guaranteed loaded
     WidgetsBinding.instance.addPostFrameCallback((_) => _connectWebSocket());
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.locationWhenInUse.request();
+    if (mounted) {
+      setState(() {
+        _locationGranted = status.isGranted;
+      });
+    }
+  }
+
+  Future<BitmapDescriptor> _createNumberedMarker(int number, Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    const double size = 100.0;
+    
+    final Paint paint = Paint()..color = color;
+    final Paint borderPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 6.0;
+    
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, borderPaint);
+    
+    final TextPainter painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    painter.text = TextSpan(
+      text: number.toString(),
+      style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+    );
+    painter.layout();
+    painter.paint(
+      canvas,
+      Offset((size - painter.width) / 2, (size - painter.height) / 2),
+    );
+    
+    final img = await pictureRecorder.endRecording().toImage(size.toInt(), size.toInt());
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(data!.buffer.asUint8List());
   }
 
   void _connectWebSocket() {
@@ -479,6 +550,19 @@ class _MapScreenState extends State<MapScreen> {
         if (!mounted) return;
         final data = jsonDecode(message);
         if (data is Map<String, dynamic>) {
+          _signalCounter++;
+          final currentNumber = _signalCounter;
+          data['number'] = currentNumber;
+          final signalId = data['text'] ?? currentNumber.toString();
+          
+          _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
+            if (mounted) {
+              setState(() {
+                _markerIcons[signalId] = icon;
+              });
+            }
+          });
+
           setState(() {
             _liveSignals.insert(0, data);
           });
@@ -524,7 +608,7 @@ class _MapScreenState extends State<MapScreen> {
           title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
           snippet: signal['text'] ?? '',
         ),
-        icon: BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+        icon: _markerIcons[signal['text'] ?? signal['number'].toString()] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
       );
     }).whereType<Marker>().toSet();
   }
@@ -538,6 +622,7 @@ class _MapScreenState extends State<MapScreen> {
             Positioned.fill(
               child: GoogleMap(
                 myLocationButtonEnabled: true,
+                myLocationEnabled: _locationGranted,
                 zoomControlsEnabled: false,
                 initialCameraPosition: const CameraPosition(
                   target: LatLng(33.6844, 73.0479),
@@ -572,10 +657,12 @@ class _MapScreenState extends State<MapScreen> {
                       const SizedBox(height: 8),
                       ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 150),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: _liveSignals.map((s) => Padding(
+                        child: Scrollbar(
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _liveSignals.map((s) => Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -586,6 +673,13 @@ class _MapScreenState extends State<MapScreen> {
                                     height: 8,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Text(
+                                    '#${s['number'] ?? '-'} ',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
                                       color: _getSignalColor(s),
                                     ),
                                   ),
@@ -1079,6 +1173,46 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
+      body: ListView(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('System Default'),
+            value: ThemeMode.system,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Light Theme'),
+            value: ThemeMode.light,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Dark Theme'),
+            value: ThemeMode.dark,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
           ),
         ],
       ),
