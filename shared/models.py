@@ -14,7 +14,7 @@ Models:
 """
 
 from pydantic import BaseModel, Field
-from typing import Any
+from typing import Any, Optional
 from datetime import datetime
 
 
@@ -27,7 +27,9 @@ class CrisisSignal(BaseModel):
     text: str = Field(..., description="Raw or normalised signal text, can be English or Roman Urdu")
     location: str = Field(..., description="Zone or area name, e.g. 'G-10', 'F-8', 'Blue Area'")
     crisis_type: str = Field(..., description="Crisis category: Flood, Accident, Power Outage, Fire, Traffic")
-    severity: int = Field(..., ge=1, le=5, description="Severity level from 1 (minor) to 5 (critical)")
+    lat: Optional[float] = Field(default=None, description="Exact latitude coordinate if available")
+    lng: Optional[float] = Field(default=None, description="Exact longitude coordinate if available")
+    severity: Optional[int] = Field(default=None, ge=1, le=5, description="Severity level from 1 (minor) to 5 (critical)")
     source: str = Field(default="user_report", description="Signal source: user_report, sensor, social_media, news")
     timestamp: str = Field(
         default_factory=lambda: datetime.now().isoformat(),

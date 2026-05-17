@@ -111,7 +111,7 @@ class CIROPipeline:
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are an Analyst Agent. Analyse CrisisSignal objects. Return JSON DetectedCrisis with type, location, severity, confidence, reasoning, and reasoning_steps list explaining your analysis.",
+                system_instruction="You are an Analyst Agent. Analyse CrisisSignal objects. Return JSON DetectedCrisis with type, location, severity, confidence, reasoning, and reasoning_steps list explaining your analysis. Derive severity strictly from the user's raw text and crisis type using this scale: 1 = minor inconvenience reported calmly, 2 = noticeable disruption, 3 = significant incident affecting multiple people, 4 = serious emergency with immediate danger, 5 = catastrophic event requiring all available resources. You must justify your severity choice inside reasoning_steps.",
                 response_mime_type="application/json",
                 response_schema=AnalystAgentOutput,
                 temperature=0.2,
@@ -137,7 +137,7 @@ class CIROPipeline:
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are a Coordinator Agent. Given crisis, return JSON array of ResponseAction objects prioritised P1/P2/P3. Generate reasoning_steps explaining your prioritization.",
+                system_instruction="You are a Coordinator Agent. Given crisis, return JSON array of ResponseAction objects prioritised P1/P2/P3. Generate reasoning_steps explaining your prioritization. When coordinates (lat/lng) are available in the signal data, generate actions tied to the exact GPS location (e.g. 'Dispatch nearest ambulance to coordinates 33.7225, 73.0805' or 'Establish a diversion at the 500m radius around the reported location'). When no coordinates are available, fall back to zone-level actions.",
                 response_mime_type="application/json",
                 response_schema=CoordinatorAgentOutput,
                 temperature=0.2,
