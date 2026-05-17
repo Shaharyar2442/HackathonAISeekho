@@ -352,6 +352,117 @@
         .reset-btn { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--critical); color: white; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-size: 0.75rem; font-weight: 600; margin-left: auto; text-transform: uppercase; letter-spacing: 0.5px; }
         .reset-btn:hover { background: var(--critical); }
 
+        /* ── Enhancement A: Agent Pipeline Progress Bar ── */
+        .pipeline-track {
+            display: flex; align-items: center; gap: 0;
+            background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 14px; padding: 14px 16px; margin-bottom: 20px;
+        }
+        .pipe-node {
+            display: flex; flex-direction: column; align-items: center; gap: 6px;
+            flex: 1; position: relative;
+        }
+        .pipe-icon {
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.1);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1rem; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+        .pipe-icon::after {
+            content: ''; position: absolute; inset: -4px; border-radius: 50%;
+            border: 2px solid transparent; transition: all 0.5s;
+        }
+        .pipe-label {
+            font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--text-muted); text-align: center;
+            transition: color 0.4s;
+        }
+        .pipe-connector {
+            flex: 1; height: 2px; background: rgba(255,255,255,0.08);
+            border-radius: 2px; margin-bottom: 22px; position: relative; overflow: hidden;
+        }
+        .pipe-connector-fill {
+            height: 100%; width: 0%; border-radius: 2px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 8px rgba(139,92,246,0.6);
+        }
+        .pipe-node.active .pipe-icon {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: #3b82f6;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+        .pipe-node.active .pipe-icon::after { border-color: rgba(59,130,246,0.3); animation: ring-pulse 1.5s infinite; }
+        .pipe-node.done .pipe-icon {
+            background: rgba(34, 197, 94, 0.15);
+            border-color: #22c55e;
+            box-shadow: 0 0 16px rgba(34, 197, 94, 0.4);
+        }
+        .pipe-node.done .pipe-label { color: #4ade80; }
+        @keyframes ring-pulse { 0%,100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
+
+        /* ── Enhancement B: Confidence Gauge ── */
+        .confidence-block {
+            display: none; margin-bottom: 20px;
+            background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(139,92,246,0.08));
+            border: 1px solid rgba(139,92,246,0.2); border-radius: 14px; padding: 18px 20px;
+            animation: slideIn 0.4s ease;
+        }
+        .conf-inner { display: flex; align-items: center; gap: 20px; }
+        .conf-gauge-wrap { position: relative; width: 80px; height: 80px; flex-shrink: 0; }
+        .conf-gauge-wrap svg { width: 80px; height: 80px; transform: rotate(-90deg); }
+        .conf-track { fill: none; stroke: rgba(255,255,255,0.07); stroke-width: 8; }
+        .conf-fill  { fill: none; stroke-width: 8; stroke-linecap: round;
+                      stroke-dasharray: 201; stroke-dashoffset: 201;
+                      transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .conf-center-text {
+            position: absolute; inset: 0; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+        }
+        .conf-pct { font-size: 1.2rem; font-weight: 800; font-family: 'JetBrains Mono', monospace; color: #fff; line-height: 1; }
+        .conf-unit { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        .conf-meta { flex: 1; }
+        .conf-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #a78bfa; margin-bottom: 6px; }
+        .conf-crisis-name { font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+        .conf-location { font-size: 0.82rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+        .conf-severity-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+        .conf-sev-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .conf-sev-label { font-size: 0.78rem; font-weight: 600; }
+        .export-trace-btn {
+            background: rgba(139,92,246,0.15); border: 1px solid rgba(139,92,246,0.4);
+            color: #c4b5fd; padding: 5px 12px; border-radius: 6px; cursor: pointer;
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            transition: all 0.2s; margin-top: 10px; display: inline-flex; align-items: center; gap: 5px;
+        }
+        .export-trace-btn:hover { background: rgba(139,92,246,0.3); border-color: #8b5cf6; color: #fff; }
+
+        /* ── Enhancement C: Stakeholder Notification Panel ── */
+        .stakeholder-section {
+            display: none; margin-top: 20px;
+            background: rgba(0,0,0,0.25); border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.06); overflow: hidden;
+            animation: slideIn 0.5s ease;
+        }
+        .stake-header {
+            display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted);
+        }
+        .stake-header::before { content:''; display:block; width:4px; height:14px; border-radius:4px; background:linear-gradient(to bottom,#f97316,#ef4444); }
+        .stake-card {
+            display: flex; align-items: flex-start; gap: 14px;
+            padding: 14px 18px; border-bottom: 1px solid rgba(255,255,255,0.04);
+            transition: background 0.2s;
+        }
+        .stake-card:last-child { border-bottom: none; }
+        .stake-card:hover { background: rgba(255,255,255,0.03); }
+        .stake-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 2px; }
+        .stake-body { flex: 1; }
+        .stake-to { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+        .stake-msg { font-size: 0.85rem; color: #e2e8f0; line-height: 1.5; }
+        .stake-tag { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px; }
+
     </style>
 </head>
 <body>
@@ -392,9 +503,9 @@
                     <button class="btn" style="padding: 6px 12px; font-size: 0.8rem; width: auto;" onclick="updateApiUrl()">Save</button>
                 </div>
                 <div class="scenario-row">
-                    <button class="scenario-btn" onclick="runScenario('A')">Scenario A: Flood</button>
-                    <button class="scenario-btn" onclick="runScenario('B')">Scenario B: Accident</button>
-                    <button class="scenario-btn" onclick="runScenario('C')">Scenario C: Outage</button>
+                    <button class="scenario-btn" onclick="runScenario('A', event)">Scenario A: Flood</button>
+                    <button class="scenario-btn" onclick="runScenario('B', event)">Scenario B: Accident</button>
+                    <button class="scenario-btn" onclick="runScenario('C', event)">Scenario C: Outage</button>
                     <button class="reset-btn" onclick="resetDashboard()">Reset Dashboard</button>
                 </div>
             </details>
@@ -460,7 +571,56 @@
             <div class="actions-header-wrapper">
                 <div class="panel-title" style="margin:0;">Response Protocols</div>
             </div>
-            
+
+            <!-- Enhancement A: Agent Pipeline Progress Bar -->
+            <div class="pipeline-track" id="pipeline-track">
+                <div class="pipe-node" id="pipe-sensor">
+                    <div class="pipe-icon">📡</div>
+                    <span class="pipe-label">Sensor</span>
+                </div>
+                <div class="pipe-connector"><div class="pipe-connector-fill" id="conn-1"></div></div>
+                <div class="pipe-node" id="pipe-analyst">
+                    <div class="pipe-icon">🔬</div>
+                    <span class="pipe-label">Analyst</span>
+                </div>
+                <div class="pipe-connector"><div class="pipe-connector-fill" id="conn-2"></div></div>
+                <div class="pipe-node" id="pipe-coordinator">
+                    <div class="pipe-icon">🎯</div>
+                    <span class="pipe-label">Coord</span>
+                </div>
+                <div class="pipe-connector"><div class="pipe-connector-fill" id="conn-3"></div></div>
+                <div class="pipe-node" id="pipe-simulator">
+                    <div class="pipe-icon">⚡</div>
+                    <span class="pipe-label">Simulator</span>
+                </div>
+            </div>
+
+            <!-- Enhancement B: Confidence Gauge -->
+            <div class="confidence-block" id="confidence-block">
+                <div class="conf-inner">
+                    <div class="conf-gauge-wrap">
+                        <svg viewBox="0 0 80 80">
+                            <circle class="conf-track" cx="40" cy="40" r="32"/>
+                            <circle class="conf-fill" id="conf-fill-circle" cx="40" cy="40" r="32"/>
+                        </svg>
+                        <div class="conf-center-text">
+                            <span class="conf-pct" id="conf-pct-text">0%</span>
+                            <span class="conf-unit">conf</span>
+                        </div>
+                    </div>
+                    <div class="conf-meta">
+                        <div class="conf-title">AI Detection Result</div>
+                        <div class="conf-crisis-name" id="conf-crisis-name">—</div>
+                        <div class="conf-location">📍 <span id="conf-location-text">—</span></div>
+                        <div class="conf-severity-row">
+                            <div class="conf-sev-dot" id="conf-sev-dot"></div>
+                            <span class="conf-sev-label" id="conf-sev-label">—</span>
+                            <button class="export-trace-btn" onclick="exportAgentTrace()">⬇ Export Trace</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div id="actions-container">
                 <!-- AI Generated actions will appear here -->
                 <div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px;">
@@ -474,6 +634,12 @@
                     AI Reasoning Trace
                 </div>
                 <div id="reasoning-steps"></div>
+            </div>
+
+            <!-- Enhancement C: Stakeholder Notifications -->
+            <div class="stakeholder-section" id="stakeholder-section">
+                <div class="stake-header">📢 Stakeholder Alerts</div>
+                <div id="stakeholder-cards"></div>
             </div>
 
             <div class="panel-title" style="margin-top: 24px;">Action Simulation Timeline</div>
@@ -493,6 +659,12 @@
 
         let API_BASE = 'https://ciro-backend-152360063189.asia-south1.run.app';
         let WS_URL = API_BASE.startsWith('https') ? API_BASE.replace('https', 'wss') + '/ws/signals' : API_BASE.replace('http', 'ws') + '/ws/signals';
+
+        // ── Enhancement: Store last agent trace for export ──
+        let lastAgentTrace = null;
+        let lastCrisisData = null;
+
+
 
         function updateApiUrl() {
             API_BASE = document.getElementById('api-url-input').value;
@@ -661,22 +833,34 @@
             spinner.style.display = 'block';
             banner.style.display = 'none';
 
+            // ── Enhancement A: Animate pipeline ──
+            resetPipeline();
+            animatePipelineStep(0); // Sensor active
+
             try {
-                const signalPayload = { signals: [{ text: text, location: location, type: type }] };
+                const signalPayload = { signals: [{ text: text, location: location, crisis_type: type, severity: 3, source: "dashboard" }] };
 
                 // 1. Ingest
-                const ingestRes = await fetch(`${API_BASE}/api/ingest`, {
+                await fetch(`${API_BASE}/api/ingest`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(signalPayload)
                 });
+
+                // Sensor done → Analyst active
+                await sleep(800); animatePipelineStep(1);
                 
-                // 2. Detect
+                // 2. Detect (full pipeline call)
                 const response = await fetch(`${API_BASE}/api/detect`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(signalPayload)
                 });
                 
+                // Analyst done → Coordinator active
+                await sleep(600); animatePipelineStep(2);
+                await sleep(600); animatePipelineStep(3); // Coordinator done → Simulator active
+                
                 if(!response.ok) throw new Error("API failed");
                 const data = await response.json();
                 
+                await sleep(600); finishPipeline(); // All done
                 renderCrisisData(data);
                 
             } catch (error) {
@@ -684,18 +868,32 @@
                 banner.style.display = 'block';
                 setTimeout(() => { banner.style.display = 'none'; }, 5000);
                 
+                // Simulate pipeline animation for fallback too
+                await sleep(700); animatePipelineStep(1);
+                await sleep(700); animatePipelineStep(2);
+                await sleep(700); animatePipelineStep(3);
+                await sleep(600); finishPipeline();
+
                 renderCrisisData({
-                    detected_crisis: { type: type.toUpperCase(), location: location, severity: 5, confidence: 0.96 },
+                    detected_crisis: { type: type.replace('_',' ').toUpperCase(), location: location, severity: 5, confidence: 0.96 },
                     recommended_actions: [
-                        {id: 'ACT-01', type: 'dispatch', description: `Scramble emergency services to ${location} coordinates immediately.`, priority: 1},
-                        {id: 'ACT-02', type: 'reroute', description: `Initiate traffic diversion protocols surrounding ${location} perimeter.`, priority: 2}
+                        {id: 'ACT-01', type: 'Emergency Dispatch', description: `Scramble emergency services to ${location} coordinates immediately.`, priority: 1, estimated_impact: 'First responders on-scene in 20 min'},
+                        {id: 'ACT-02', type: 'Traffic Reroute', description: `Initiate traffic diversion protocols surrounding ${location} perimeter.`, priority: 2, estimated_impact: 'Congestion reduced by 55%'},
+                        {id: 'ACT-03', type: 'Citizen Alert', description: `Broadcast bilingual public safety advisory for ${location} zone.`, priority: 3, estimated_impact: '~15,000 citizens notified'}
                     ],
-                    agent_trace: { reasoning_steps: [
-                        `Parsed incoming intelligence: Keywords detected [High Threat].`, 
-                        `Geospatial mapping locked to sector: ${location}.`, 
-                        `Severity calculated at Level 5 due to imminent public risk indicators.`, 
-                        `Synthesizing response protocols... Ready for execution.`
-                    ]},
+                    agent_trace: [{
+                        agent_name: 'Sensor Agent',
+                        reasoning_steps: [`Parsed incoming intelligence: High-urgency keywords detected.`, `Geospatial mapping locked to sector: ${location}.`]
+                    }, {
+                        agent_name: 'Analyst Agent',
+                        reasoning_steps: [`Cross-referenced ${type} signals against historical patterns.`, `Severity calculated at Level 5 — imminent public risk.`, `Confidence score: 96% based on multi-source convergence.`]
+                    }, {
+                        agent_name: 'Coordinator Agent',
+                        reasoning_steps: [`Allocated P1 emergency dispatch as highest priority.`, `P2 traffic reroute selected to reduce secondary congestion.`, `P3 citizen alert queued for broadcast.`]
+                    }, {
+                        agent_name: 'Simulator Agent',
+                        reasoning_steps: [`Simulated dispatch: ETA 20 min, water level -30cm/hr.`, `Simulated reroute: congestion 85% → 35%.`, `Alert broadcast: 15,000 users notified in affected zones.`]
+                    }],
                     crisis_id: 'SIM-909'
                 });
             } finally {
@@ -706,9 +904,14 @@
 
         function renderCrisisData(data) {
             const crisis = data.detected_crisis;
+            lastCrisisData = data;
+            lastAgentTrace = data.agent_trace;
             zoneDataMap[crisis.location] = crisis;
             updateMapColor(crisis.location, crisis.severity);
             highlightZone(crisis.location);
+
+            // ── Enhancement B: Confidence Gauge ──
+            renderConfidenceGauge(crisis);
 
             const container = document.getElementById('actions-container');
             container.innerHTML = '';
@@ -722,6 +925,7 @@
                             <span class="badge ${priorityClass}">Priority ${action.priority}</span>
                         </div>
                         <div class="action-desc">${action.description}</div>
+                        ${ action.estimated_impact ? `<div style="font-size:0.78rem;color:#64748b;margin-bottom:12px;">Impact: ${action.estimated_impact}</div>` : '' }
                         <button class="btn-sm" onclick="simulateAction('${action.id}', '${data.detected_crisis.id || 'SIM-909'}', '${action.type}', '${crisis.location}', event)">Execute Simulation</button>
                     </div>
                 `;
@@ -755,6 +959,171 @@
                     globalIdx++;
                 });
             });
+
+            // ── Enhancement C: Stakeholder Notifications ──
+            renderStakeholderAlerts(crisis);
+        }
+
+        // ── Enhancement A helpers: Pipeline animation ──
+        const PIPE_NODES = ['pipe-sensor','pipe-analyst','pipe-coordinator','pipe-simulator'];
+        const PIPE_CONNS = ['conn-1','conn-2','conn-3'];
+        let currentPipeStep = -1;
+
+        function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+        function resetPipeline() {
+            currentPipeStep = -1;
+            PIPE_NODES.forEach(id => { const n = document.getElementById(id); if(n){n.classList.remove('active','done');} });
+            PIPE_CONNS.forEach(id => { const c = document.getElementById(id); if(c) c.style.width='0%'; });
+        }
+
+        function animatePipelineStep(step) {
+            // Mark previous node as done
+            if (step > 0) {
+                const prev = document.getElementById(PIPE_NODES[step-1]);
+                if(prev){ prev.classList.remove('active'); prev.classList.add('done'); }
+                // Fill the connector before this node
+                const conn = document.getElementById(PIPE_CONNS[step-1]);
+                if(conn) conn.style.width = '100%';
+            }
+            // Mark current node as active
+            const curr = document.getElementById(PIPE_NODES[step]);
+            if(curr) curr.classList.add('active');
+            currentPipeStep = step;
+        }
+
+        function finishPipeline() {
+            PIPE_NODES.forEach(id => { const n=document.getElementById(id); if(n){n.classList.remove('active'); n.classList.add('done');} });
+            PIPE_CONNS.forEach(id => { const c=document.getElementById(id); if(c) c.style.width='100%'; });
+        }
+
+        // ── Enhancement B helper: Confidence Gauge ──
+        function renderConfidenceGauge(crisis) {
+            const block = document.getElementById('confidence-block');
+            block.style.display = 'block';
+
+            const conf = Math.round((crisis.confidence || 0.85) * 100);
+            const sev = crisis.severity || 3;
+
+            // Gauge fill: circumference = 2π×32 ≈ 201
+            const offset = 201 - (201 * conf / 100);
+            const fillEl = document.getElementById('conf-fill-circle');
+            const pctEl  = document.getElementById('conf-pct-text');
+
+            // Colour by confidence
+            let gaugeColor = '#22c55e';
+            if(conf < 60) gaugeColor = '#ef4444';
+            else if(conf < 80) gaugeColor = '#f97316';
+            fillEl.setAttribute('stroke', gaugeColor);
+
+            // Animate after paint
+            requestAnimationFrame(() => setTimeout(() => {
+                fillEl.style.strokeDashoffset = offset;
+                // Count-up animation
+                let cur = 0;
+                const step = Math.ceil(conf / 30);
+                const timer = setInterval(() => {
+                    cur = Math.min(cur + step, conf);
+                    pctEl.textContent = cur + '%';
+                    if(cur >= conf) clearInterval(timer);
+                }, 30);
+            }, 50));
+
+            document.getElementById('conf-crisis-name').textContent = crisis.type || 'Unknown Crisis';
+            document.getElementById('conf-location-text').textContent = crisis.location || '—';
+
+            const sevColors = {1:'#22c55e',2:'#84cc16',3:'#eab308',4:'#f97316',5:'#ef4444'};
+            const sevLabels = {1:'Severity 1 — Minor',2:'Severity 2 — Low',3:'Severity 3 — Moderate',4:'Severity 4 — High',5:'Severity 5 — Critical'};
+            const dot = document.getElementById('conf-sev-dot');
+            const lbl = document.getElementById('conf-sev-label');
+            dot.style.background = sevColors[sev] || '#94a3b8';
+            dot.style.boxShadow  = `0 0 8px ${sevColors[sev] || '#94a3b8'}`;
+            lbl.style.color = sevColors[sev] || '#94a3b8';
+            lbl.textContent = sevLabels[sev] || `Severity ${sev}`;
+        }
+
+        // ── Enhancement C helper: Stakeholder Alerts ──
+        function renderStakeholderAlerts(crisis) {
+            const section = document.getElementById('stakeholder-section');
+            const cardsDiv = document.getElementById('stakeholder-cards');
+            section.style.display = 'block';
+
+            const type = (crisis.type || '').toLowerCase();
+            const loc  = crisis.location || 'Affected Area';
+            const sev  = crisis.severity || 3;
+
+            const alerts = [
+                buildAlert('🏥', 'Hospital & Medical', '#ef4444', getHospitalMsg(type, loc, sev), 'URGENT'),
+                buildAlert('🚔', 'Law Enforcement', '#f97316', getPoliceMsg(type, loc, sev), 'PRIORITY'),
+                buildAlert('📱', 'Public Advisory', '#3b82f6', getPublicMsg(type, loc), 'BROADCAST'),
+            ];
+
+            cardsDiv.innerHTML = alerts.join('');
+
+            // Animate cards in with stagger
+            requestAnimationFrame(() => {
+                cardsDiv.querySelectorAll('.stake-card').forEach((el, i) => {
+                    el.style.opacity = '0'; el.style.transform = 'translateX(-10px)';
+                    el.style.transition = 'all 0.4s ease';
+                    setTimeout(() => { el.style.opacity='1'; el.style.transform='none'; }, i * 200);
+                });
+            });
+        }
+
+        function buildAlert(icon, to, color, msg, tag) {
+            return `<div class="stake-card">
+                <div class="stake-icon">${icon}</div>
+                <div class="stake-body">
+                    <div class="stake-to" style="color:${color}">${to}</div>
+                    <div class="stake-msg">${msg}</div>
+                    <span class="stake-tag" style="background:${color}22;color:${color};border:1px solid ${color}44;">${tag}</span>
+                </div>
+            </div>`;
+        }
+
+        function getHospitalMsg(type, loc, sev) {
+            if(type.includes('flood')) return `Prepare ${sev >= 4 ? 6 : 3} trauma beds and water-rescue teams. Potential casualties inbound from ${loc} flooding.`;
+            if(type.includes('accident')) return `Emergency trauma bay activation required. Multi-vehicle collision at ${loc}. Expect ${sev >= 4 ? '5+' : '2-3'} critical patients.`;
+            if(type.includes('fire') || type.includes('outage')) return `Stand by for burn/smoke-inhalation cases from ${loc}. Generator backup systems to be verified.`;
+            return `Standby alert issued for ${loc} crisis. Prepare emergency intake for potential casualties.`;
+        }
+
+        function getPoliceMsg(type, loc, sev) {
+            if(type.includes('flood')) return `Deploy ${sev >= 4 ? '4' : '2'} traffic units to ${loc}. Initiate road closures on primary access routes. Coordinate with NDMA rescue teams.`;
+            if(type.includes('accident')) return `Scene management required at ${loc}. Establish 200m perimeter. Redirect incoming traffic via alternate corridors.`;
+            if(type.includes('fire')) return `Evacuate 500m radius around ${loc}. Block all access roads and support fire brigade ingress routes.`;
+            return `Deploy ${sev >= 4 ? '3' : '1'} patrol units to ${loc} for crowd control and traffic management.`;
+        }
+
+        function getPublicMsg(type, loc) {
+            if(type.includes('flood')) return `⚠️ FLOOD ALERT — ${loc}: Roads submerged. Avoid area immediately. Use Margalla Road / Kashmir Highway alternates. Emergency helpline: 1122.`;
+            if(type.includes('accident')) return `🚧 ACCIDENT ALERT — ${loc}: Major collision reported. Expect heavy delays. Seek alternate routes. Do not stop at scene.`;
+            if(type.includes('outage') || type.includes('power')) return `💡 POWER OUTAGE — ${loc}: Estimated restoration 2-3 hrs. Avoid lifts and tunnels. WAPDA helpline: 118.`;
+            if(type.includes('fire')) return `🔥 FIRE HAZARD — ${loc}: Evacuate immediately if in affected zone. Call 16 (Rescue) for assistance. Avoid area.`;
+            return `⚠️ SAFETY ALERT — ${loc}: Emergency response teams deployed. Follow official guidance and avoid the affected area.`;
+        }
+
+        // ── Enhancement D: Export Agent Trace ──
+        function exportAgentTrace() {
+            if (!lastAgentTrace || !lastCrisisData) {
+                alert('No trace available — run an analysis first.');
+                return;
+            }
+            const exportPayload = {
+                export_time: new Date().toISOString(),
+                ciro_version: '1.0.0',
+                detected_crisis: lastCrisisData.detected_crisis,
+                actions_recommended: lastCrisisData.actions_recommended || lastCrisisData.recommended_actions || [],
+                agent_trace: lastAgentTrace
+            };
+            const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `ciro-agent-trace-${Date.now()}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
         }
 
         // Phase 3: Visual Timeline Simulation
@@ -891,7 +1260,7 @@
         }
         // Phase 4: Scenario Runner
         let currentEventSource = null;
-        async function runScenario(scenarioId) {
+        async function runScenario(scenarioId, event) {
             resetDashboard();
             isScenarioRunning = true;
             if (currentEventSource) currentEventSource.close();
@@ -961,6 +1330,8 @@
         
         function resetDashboard() {
             isScenarioRunning = false;
+            lastAgentTrace = null;
+            lastCrisisData = null;
             document.getElementById('signal-feed').innerHTML = '';
             document.getElementById('actions-container').innerHTML = '<div style="color: var(--text-muted); font-size: 0.9rem; text-align: center; padding: 20px;">Awaiting AI anomaly detection to generate response protocols.</div>';
             document.getElementById('reasoning-steps').innerHTML = '';
@@ -973,6 +1344,14 @@
                 el.style.filter = 'none';
             });
             document.querySelectorAll('text[id^="resolved-"]').forEach(el => el.remove());
+
+            // Reset enhancement panels
+            document.getElementById('confidence-block').style.display = 'none';
+            document.getElementById('conf-pct-text').textContent = '0%';
+            document.getElementById('conf-fill-circle').style.strokeDashoffset = '201';
+            document.getElementById('stakeholder-section').style.display = 'none';
+            document.getElementById('stakeholder-cards').innerHTML = '';
+            resetPipeline();
         }
     </script>
 </body>
