@@ -130,7 +130,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final isDark = theme.brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), // Slate 900 / Slate 50
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: Stack(
           children: [
@@ -156,7 +156,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       width: 160,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: theme.colorScheme.surfaceContainer,
+                        color: theme.colorScheme.primaryContainer,
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.08),
