@@ -7,11 +7,36 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'api_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const CIROApp());
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Error loading .env in main: $e");
+  }
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => ThemeProvider(),
+      child: const CIROApp(),
+    ),
+  );
+}
+
+class ThemeProvider extends ChangeNotifier {
+  ThemeMode _themeMode = ThemeMode.system;
+
+  ThemeMode get themeMode => _themeMode;
+
+  void setThemeMode(ThemeMode mode) {
+    _themeMode = mode;
+    notifyListeners();
+  }
 }
 
 class CIROApp extends StatelessWidget {
@@ -22,7 +47,7 @@ class CIROApp extends StatelessWidget {
     return MaterialApp(
       title: 'CIRO',
       debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.system,
+      themeMode: context.watch<ThemeProvider>().themeMode,
       theme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF1A73E8), // Google Blue
@@ -89,12 +114,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _initializeApp() async {
     final startTime = DateTime.now();
     
-    try {
-      // Perform fast async initialization
-      await dotenv.load(fileName: ".env");
-    } catch (e) {
-      print("Error loading .env in Splash: $e");
-    }
+    // dotenv is now loaded in main()
 
     // Ensure splash is visible for at least 2.5 seconds for branding and premium feel
     final elapsedTime = DateTime.now().difference(startTime);
@@ -130,7 +150,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final isDark = theme.brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC), // Slate 900 / Slate 50
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: Stack(
           children: [
@@ -156,7 +176,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       width: 160,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: theme.colorScheme.surfaceContainer,
+                        color: theme.colorScheme.primaryContainer,
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.08),
@@ -313,7 +333,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
+          )
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -444,31 +473,157 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late WebSocketChannel _channel;
-  final List<String> _liveSignals = [];
+  WebSocketChannel? _channel;
+  final List<Map<String, dynamic>> _liveSignals = [];
+  bool _wsConnected = false;
+  bool _locationGranted = false;
+  
+  int _signalCounter = 0;
+  final Map<String, BitmapDescriptor> _markerIcons = {};
+  final ScrollController _feedScrollController = ScrollController();
+
+  final Map<String, LatLng> _zoneCoordinates = {
+    'G-10': const LatLng(33.6738, 73.0135),
+    'G-11': const LatLng(33.6651, 72.9922),
+    'F-8': const LatLng(33.7082, 73.0374),
+    'I-8': const LatLng(33.6690, 73.0760),
+    'Blue Area': const LatLng(33.7225, 73.0805),
+  };
 
   @override
   void initState() {
     super.initState();
-    // Connect to backend WebSocket for live dashboard feed
-    final wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
-    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-    _channel.stream.listen((message) {
-      if (!mounted) return;
-      final data = jsonDecode(message);
+    _checkLocationPermission();
+    // Defer WebSocket connection to after the first frame so dotenv is guaranteed loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) => _connectWebSocket());
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await Permission.locationWhenInUse.request();
+    if (mounted) {
       setState(() {
-        _liveSignals.insert(0, data['text']);
-        // Cache locally; only top 5 shown in UI
+        _locationGranted = status.isGranted;
       });
-    }, onError: (e) {
-      print("WebSocket error: $e");
-    });
+    }
+  }
+
+  Future<BitmapDescriptor> _createNumberedMarker(int number, Color color) async {
+    final ui.PictureRecorder pictureRecorder = ui.PictureRecorder();
+    final Canvas canvas = Canvas(pictureRecorder);
+    const double size = 100.0;
+    
+    final Paint paint = Paint()..color = color;
+    final Paint borderPaint = Paint()..color = Colors.white..style = PaintingStyle.stroke..strokeWidth = 6.0;
+    
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, paint);
+    canvas.drawCircle(const Offset(size / 2, size / 2), size / 2, borderPaint);
+    
+    final TextPainter painter = TextPainter(
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    );
+    painter.text = TextSpan(
+      text: number.toString(),
+      style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+    );
+    painter.layout();
+    painter.paint(
+      canvas,
+      Offset((size - painter.width) / 2, (size - painter.height) / 2),
+    );
+    
+    final img = await pictureRecorder.endRecording().toImage(size.toInt(), size.toInt());
+    final data = await img.toByteData(format: ui.ImageByteFormat.png);
+    return BitmapDescriptor.fromBytes(data!.buffer.asUint8List());
+  }
+
+  void _connectWebSocket() {
+    if (_wsConnected || !mounted) return;
+    try {
+      // Read from env; auto-convert http(s):// → ws(s):// if misconfigured
+      String wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
+      wsUrl = wsUrl
+          .replaceFirst('https://', 'wss://')
+          .replaceFirst('http://', 'ws://');
+
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsConnected = true;
+      _channel!.stream.listen((message) {
+        if (!mounted) return;
+        final data = jsonDecode(message);
+        if (data is Map<String, dynamic>) {
+          _signalCounter++;
+          final currentNumber = _signalCounter;
+          data['number'] = currentNumber;
+          final signalId = data['text'] ?? currentNumber.toString();
+          
+          final locName = data['location'] as String?;
+          final baseLatLng = _zoneCoordinates[locName];
+          if (baseLatLng != null) {
+            final random = math.Random();
+            // Disperse by roughly ~300 meters randomly
+            data['computed_latlng'] = LatLng(
+              baseLatLng.latitude + (random.nextDouble() - 0.5) * 0.005,
+              baseLatLng.longitude + (random.nextDouble() - 0.5) * 0.005,
+            );
+          }
+          
+          _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
+            if (mounted) {
+              setState(() {
+                _markerIcons[signalId] = icon;
+              });
+            }
+          });
+
+          setState(() {
+            _liveSignals.insert(0, data);
+          });
+        }
+      }, onError: (e) {
+        print("WebSocket error: $e");
+      });
+    } catch (e) {
+      print("WebSocket connect error: $e");
+    }
   }
 
   @override
   void dispose() {
-    _channel.sink.close();
+    _channel?.sink.close();
+    _feedScrollController.dispose();
     super.dispose();
+  }
+
+  Color _getSignalColor(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return Colors.red;
+    if (severity == 3) return Colors.orange;
+    return Colors.blue;
+  }
+
+  double _getMarkerHue(Map<String, dynamic> signal) {
+    final severity = signal['severity'] ?? 1;
+    if (severity >= 4) return BitmapDescriptor.hueRed;
+    if (severity == 3) return BitmapDescriptor.hueOrange;
+    return BitmapDescriptor.hueAzure;
+  }
+
+  Set<Marker> _buildMarkers() {
+    return _liveSignals.map((signal) {
+      final latLng = signal['computed_latlng'] as LatLng? ?? _zoneCoordinates[signal['location']];
+      if (latLng == null) return null;
+      
+      return Marker(
+        markerId: MarkerId(signal['text'] ?? DateTime.now().toString()),
+        position: latLng,
+        infoWindow: InfoWindow(
+          title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
+          snippet: signal['text'] ?? '',
+        ),
+        icon: _markerIcons[signal['text'] ?? signal['number'].toString()] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+      );
+    }).whereType<Marker>().toSet();
   }
 
   @override
@@ -477,12 +632,16 @@ class _MapScreenState extends State<MapScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const GoogleMap(
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(33.6844, 73.0479),
-                zoom: 12.0,
+            Positioned.fill(
+              child: GoogleMap(
+                myLocationButtonEnabled: true,
+                myLocationEnabled: _locationGranted,
+                zoomControlsEnabled: false,
+                initialCameraPosition: const CameraPosition(
+                  target: LatLng(33.6844, 73.0479),
+                  zoom: 12.0,
+                ),
+                markers: _buildMarkers(),
               ),
             ),
             if (_liveSignals.isNotEmpty)
@@ -509,10 +668,49 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      ..._liveSignals.take(5).map((s) => Padding(
-                        padding: const EdgeInsets.only(bottom: 4.0),
-                        child: Text(s, style: Theme.of(context).textTheme.bodySmall),
-                      )).toList(),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 150),
+                        child: Scrollbar(
+                          controller: _feedScrollController,
+                          thumbVisibility: true,
+                          child: SingleChildScrollView(
+                            controller: _feedScrollController,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: _liveSignals.map((s) => Padding(
+                              padding: const EdgeInsets.only(bottom: 8.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 4, right: 8),
+                                    width: 8,
+                                    height: 8,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Text(
+                                    '#${s['number'] ?? '-'} ',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: _getSignalColor(s),
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: Text(
+                                      s['text'] ?? 'Unknown signal', 
+                                      style: Theme.of(context).textTheme.bodySmall,
+                                      ),
+                                  ),
+                                ],
+                              ),
+                              )).toList(),
+                            ),
+                          ),
+                        ),
+                      )
                     ],
                   ),
                 ),
@@ -991,6 +1189,46 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+      ),
+      body: ListView(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text('Appearance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('System Default'),
+            value: ThemeMode.system,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Light Theme'),
+            value: ThemeMode.light,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
+          ),
+          RadioListTile<ThemeMode>(
+            title: const Text('Dark Theme'),
+            value: ThemeMode.dark,
+            groupValue: themeProvider.themeMode,
+            onChanged: (val) => context.read<ThemeProvider>().setThemeMode(val!),
           ),
         ],
       ),

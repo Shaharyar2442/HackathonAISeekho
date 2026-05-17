@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  static final String baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
+  static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type) async {
     final signalData = {
