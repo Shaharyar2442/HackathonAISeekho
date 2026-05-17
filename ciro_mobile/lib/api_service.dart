@@ -10,7 +10,7 @@ class ApiService {
     String backendType = type.toLowerCase();
     if (backendType == 'power outage') backendType = 'outage';
 
-    final signalData = {
+    final Map<String, dynamic> signalData = {
       'text': text,
       'location': location,
       'crisis_type': backendType,
