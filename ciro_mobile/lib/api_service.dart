@@ -43,7 +43,7 @@ class ApiService {
     );
 
     if (detectRes.statusCode != 200) {
-      throw Exception('Failed to analyze crisis (Status: ${detectRes.statusCode})');
+      throw Exception('Failed to report crisis (Status: ${detectRes.statusCode})');
     }
 
     final data = jsonDecode(detectRes.body);
