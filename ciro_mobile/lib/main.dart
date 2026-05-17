@@ -10,6 +10,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'api_service.dart';
 
 void main() async {
@@ -479,6 +480,7 @@ class _MapScreenState extends State<MapScreen> {
   
   int _signalCounter = 0;
   final Map<String, BitmapDescriptor> _markerIcons = {};
+  final ScrollController _feedScrollController = ScrollController();
 
   final Map<String, LatLng> _zoneCoordinates = {
     'G-10': const LatLng(33.6738, 73.0135),
@@ -555,6 +557,17 @@ class _MapScreenState extends State<MapScreen> {
           data['number'] = currentNumber;
           final signalId = data['text'] ?? currentNumber.toString();
           
+          final locName = data['location'] as String?;
+          final baseLatLng = _zoneCoordinates[locName];
+          if (baseLatLng != null) {
+            final random = math.Random();
+            // Disperse by roughly ~300 meters randomly
+            data['computed_latlng'] = LatLng(
+              baseLatLng.latitude + (random.nextDouble() - 0.5) * 0.005,
+              baseLatLng.longitude + (random.nextDouble() - 0.5) * 0.005,
+            );
+          }
+          
           _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
             if (mounted) {
               setState(() {
@@ -578,6 +591,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _channel?.sink.close();
+    _feedScrollController.dispose();
     super.dispose();
   }
 
@@ -597,8 +611,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Set<Marker> _buildMarkers() {
     return _liveSignals.map((signal) {
-      final locName = signal['location'] as String?;
-      final latLng = _zoneCoordinates[locName];
+      final latLng = signal['computed_latlng'] as LatLng? ?? _zoneCoordinates[signal['location']];
       if (latLng == null) return null;
       
       return Marker(
@@ -658,8 +671,10 @@ class _MapScreenState extends State<MapScreen> {
                       ConstrainedBox(
                         constraints: const BoxConstraints(maxHeight: 150),
                         child: Scrollbar(
+                          controller: _feedScrollController,
                           thumbVisibility: true,
                           child: SingleChildScrollView(
+                            controller: _feedScrollController,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: _liveSignals.map((s) => Padding(
@@ -687,14 +702,15 @@ class _MapScreenState extends State<MapScreen> {
                                     child: Text(
                                       s['text'] ?? 'Unknown signal', 
                                       style: Theme.of(context).textTheme.bodySmall,
-                                    ),
+                                      ),
                                   ),
                                 ],
                               ),
-                            )).toList(),
+                              )).toList(),
+                            ),
                           ),
                         ),
-                      ),
+                      )
                     ],
                   ),
                 ),
