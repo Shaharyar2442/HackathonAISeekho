@@ -1,10 +1,9 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class ApiService {
-  // Using 10.0.2.2 which is the special alias to your host loopback interface from the Android emulator.
-  // If testing on a physical device, this should be your computer's local network IP (e.g., 192.168.x.x).
-  static const String baseUrl = 'http://10.188.25.60:8000/api';
+  static final String baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type) async {
     final signalData = {

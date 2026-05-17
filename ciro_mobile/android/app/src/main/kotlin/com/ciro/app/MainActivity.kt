@@ -1,4 +1,4 @@
-package com.example.ciro_mobile
+package com.ciro.app
 
 import io.flutter.embedding.android.FlutterActivity
 
