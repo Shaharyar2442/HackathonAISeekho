@@ -454,8 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 },
                 icon: _isLoading 
                     ? Container(width: 20, height: 20, margin: const EdgeInsets.only(right: 8), child: const CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                    : const Icon(Icons.analytics_outlined),
-                label: Text(_isLoading ? 'Analyzing...' : 'Analyze Crisis', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    : const Icon(Icons.send_rounded),
+                label: Text(_isLoading ? 'Reporting...' : 'Report', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
