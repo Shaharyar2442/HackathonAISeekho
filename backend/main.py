@@ -1,19 +1,26 @@
 """
 CIRO FastAPI Backend — Main Application
 =========================================
-4 API endpoints for crisis detection and response orchestration.
+Backend API for crisis detection and response orchestration.
 The /api/detect endpoint invokes the full CIROPipeline (4 agents in sequence).
 
 Endpoints:
-    POST /api/ingest    — Ingest raw crisis signals
-    POST /api/detect    — Run full agent pipeline, return crisis + trace
-    POST /api/actions   — Get recommended actions for a crisis
-    POST /api/simulate  — Run action simulation
+    POST /api/ingest              — Ingest raw crisis signals
+    POST /api/detect              — Run full agent pipeline, return crisis + trace
+    POST /api/actions             — Get recommended actions for a crisis
+    POST /api/simulate            — Run action simulation
+    GET  /api/health              — Health check
+    GET  /api/aggregate/{zone}    — Multi-source signal aggregation
+    GET  /api/crisis/{id}/logs    — Fetch agent trace from Firestore
+    POST /api/demo/run-scenario/{scenario_id} — SSE streaming demo
+    WS   /ws/signals              — Live signal WebSocket
 """
 
 import sys
 import os
+import json
 import uuid
+import random
 from datetime import datetime
 
 # Add parent directory to path so we can import shared.models
@@ -21,6 +28,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from shared.models import (
@@ -35,6 +44,9 @@ from action_simulator import ActionSimulator
 from config import get_settings
 from db import get_db
 
+from signal_processor import MockDataGenerator
+from signal_aggregator import SignalAggregator, CrisisScorer, AggregatorAgentLogger
+
 # ------------------------------------------------------------------ #
 # FastAPI Application
 # ------------------------------------------------------------------ #
@@ -47,6 +59,18 @@ app = FastAPI(
         "Sensor → Analyst → Coordinator → Simulator."
     ),
     version="1.0.0",
+)
+
+# ------------------------------------------------------------------ #
+# CORS — allow dashboard, mobile, and any origin to call the API
+# ------------------------------------------------------------------ #
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -102,6 +126,17 @@ signal_store: list[dict] = []
 # ------------------------------------------------------------------ #
 # Endpoints
 # ------------------------------------------------------------------ #
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint for Cloud Run and monitoring."""
+    return {
+        "status": "healthy",
+        "service": "CIRO Backend",
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat(),
+    }
+
 
 @app.post("/api/ingest", response_model=IngestResponse)
 async def ingest_signals(request: IngestRequest):
@@ -180,45 +215,109 @@ async def get_actions(request: ActionsRequest):
 async def simulate_action(request: SimulateRequest):
     """Simulate execution of a response action using ActionSimulator."""
     simulator = ActionSimulator()
-    
-    if "Traffic Reroute" in request.action_type:
-        result = await simulator.simulate_traffic_reroute("Affected Area", "Alternate Route")
-    elif "Emergency Dispatch" in request.action_type:
+    action_lower = request.action_type.lower()
+
+    if any(kw in action_lower for kw in ["traffic", "reroute", "route", "divert", "redirect"]):
+        result = await simulator.simulate_traffic_reroute("Affected Area", "Kashmir Highway Alternate")
+    elif any(kw in action_lower for kw in ["dispatch", "emergency", "rescue", "ndma", "fire", "ambulance"]):
         result = await simulator.simulate_emergency_dispatch("Affected Area")
-    elif "Citizen Alert" in request.action_type:
+    elif any(kw in action_lower for kw in ["alert", "notify", "notification", "citizen", "public", "broadcast"]):
         result = await simulator.simulate_citizen_alert("Affected Area")
     else:
-        # Fallback simulation
-        result = await simulator.simulate_traffic_reroute("Unknown Location", "Default Route")
-        
+        # Fallback to traffic reroute as most common action
+        result = await simulator.simulate_traffic_reroute("Affected Area", "Margalla Road Alternate")
+
     # Override action_id with request's action_id
     result.action_id = request.action_id
-
     return {"simulation_result": result.model_dump()}
+
+
+@app.get("/api/health")
+async def health_check():
+    """Quick health probe used by the dashboard and CI."""
+    return {"status": "ok", "service": "CIRO", "timestamp": datetime.now().isoformat()}
 
 
 # ------------------------------------------------------------------ #
 # Phase 3: WebSockets & Logs
 # ------------------------------------------------------------------ #
 
+# Realistic Islamabad crisis signals for WebSocket live feed
+REALISTIC_SIGNALS = [
+    {"text": "G-10 mein pani bhar gaya hai, gaariyan phans gayi hain!", "crisis_type": "flood",    "severity": 5},
+    {"text": "G-10 nala overflow ho gaya, bohot pani aa raha hai",       "crisis_type": "flood",    "severity": 4},
+    {"text": "G-10 mein thodi baarish ke baad sadkon pe pani jam gaya",  "crisis_type": "flood",    "severity": 2},
+    {"text": "F-8 mein bari car crash, ambulance immediately chahiye!",   "crisis_type": "accident", "severity": 5},
+    {"text": "F-8 pe seriously injured hain log, rescue team bulao",       "crisis_type": "accident", "severity": 4},
+    {"text": "F-8 pe traffic jam lag gaya, accident ki wajah se",          "crisis_type": "accident", "severity": 3},
+    {"text": "Blue Area mein bijli nahi hai, offices band ho rahe hain",   "crisis_type": "outage",   "severity": 3},
+    {"text": "Blue Area transformer blast hua, power completely off",      "crisis_type": "outage",   "severity": 5},
+    {"text": "Blue Area mein bijli thodi wapas aayi, kuch sectors live",   "crisis_type": "outage",   "severity": 2},
+    {"text": "G-11 mein traffic jam lag gaya, Margalla Road block hai",    "crisis_type": "traffic",  "severity": 3},
+    {"text": "I-8 mein signal system kharab hai, bohot delay ho rahi hai", "crisis_type": "traffic",  "severity": 2},
+    {"text": "G-11 mein construction site pe accident hua, area seal",     "crisis_type": "accident", "severity": 3},
+    {"text": "I-8 mein gas leak report hua, log area khali kar rahe hain", "crisis_type": "fire",     "severity": 4},
+    {"text": "F-8 mein smoke reported near market, fire brigade alert",    "crisis_type": "fire",     "severity": 3},
+    {"text": "G-10 mein halki baarish, roads thodi slippery hain",         "crisis_type": "flood",    "severity": 1},
+]
+
+SOURCES = ["social_media", "citizen_report", "sensor_net", "field_officer", "weather_api"]
+
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
-    """WebSocket endpoint that broadcasts a mock live signal every 5 seconds.
-    Used for dashboard live feeds.
+    """WebSocket endpoint that broadcasts a realistic mock live signal every 5 seconds.
+    Uses Member 3's MockDataGenerator.
     """
     await websocket.accept()
+    generator = MockDataGenerator()
     try:
         while True:
-            mock_signal = {
-                "id": str(uuid.uuid4())[:8],
-                "text": f"Live incoming signal stream: {datetime.now().strftime('%H:%M:%S')}",
-                "source": "live_feed",
-                "timestamp": datetime.now().isoformat()
-            }
-            await websocket.send_json(mock_signal)
+            # Use Member 3's generator for realistic signals
+            mock_signal = generator.generate(count=1)[0]
+            # Add some live metadata
+            signal_data = mock_signal.model_dump()
+            signal_data["id"] = str(uuid.uuid4())[:8]
+            signal_data["is_live"] = True
+            
+            await websocket.send_json(signal_data)
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         print("WebSocket client disconnected")
+
+
+@app.get("/api/aggregate/{zone}")
+async def aggregate_zone_signals(zone: str):
+    """Uses Member 3's SignalAggregator to fetch multi-source signals for a zone."""
+    aggregator = SignalAggregator()
+    scorer = CrisisScorer()
+    logger = AggregatorAgentLogger()
+    
+    signals = aggregator.aggregate_all(zone)
+    assessment = scorer.score(signals)
+    trace_log = logger.log(zone, signals, assessment)
+    
+    # Save trace to Firestore
+    try:
+        db = get_db()
+        db.collection("agent_traces").add({
+            "trace_id": str(uuid.uuid4()),
+            "timestamp": datetime.now().isoformat(),
+            "agent_trace": [trace_log.model_dump()],
+            "zone": zone
+        })
+    except Exception as e:
+        print(f"WARNING: Could not save trace to Firestore: {e}")
+        
+    return {
+        "zone": zone,
+        "signals": [s.model_dump() for s in signals],
+        "assessment": {
+            "crisis_probability": assessment.crisis_probability,
+            "severity_level": assessment.severity_level,
+            "trend": assessment.trend
+        },
+        "agent_trace": [trace_log.model_dump()]
+    }
 
 
 @app.get("/api/crisis/{id}/logs")
@@ -236,4 +335,78 @@ async def get_crisis_logs(id: str):
     except Exception as e:
         print(f"Firestore read failed: {e}")
         return {"status": "error", "message": f"Could not fetch logs (GCP error: {e})"}
+
+
+# ------------------------------------------------------------------ #
+# Phase 4: SSE Scenario Demo Endpoint
+# ------------------------------------------------------------------ #
+
+SCENARIOS_PATH = os.path.join(os.path.dirname(__file__), "..", "scenarios.json")
+
+
+@app.post("/api/demo/run-scenario/{scenario_id}")
+async def run_scenario_demo(scenario_id: str):
+    """Stream a scenario as Server-Sent Events (SSE).
+    
+    Loads the scenario from scenarios.json, iterates through each signal
+    with a 1.5s delay between events to simulate real-time ingestion.
+    Each event is an SSE `data:` line containing the signal JSON.
+    
+    Usage:
+        curl -N -X POST http://localhost:8000/api/demo/run-scenario/A
+    """
+    # Load scenarios
+    try:
+        with open(SCENARIOS_PATH, "r") as f:
+            scenarios = json.load(f)
+    except FileNotFoundError:
+        return {"status": "error", "message": "scenarios.json not found"}
+
+    # Find requested scenario
+    scenario = next((s for s in scenarios if s["scenario_id"] == scenario_id), None)
+    if not scenario:
+        return {"status": "error", "message": f"Scenario '{scenario_id}' not found. Available: A, B, C"}
+
+    async def event_generator():
+        signals = scenario["signals"]
+        # Send scenario metadata first
+        meta = {
+            "event": "scenario_start",
+            "scenario_id": scenario["scenario_id"],
+            "name": scenario["name"],
+            "zone": scenario["zone"],
+            "description": scenario["description"],
+            "total_signals": len(signals),
+        }
+        yield f"data: {json.dumps(meta)}\n\n"
+        await asyncio.sleep(0.5)
+
+        # Stream each signal with delay
+        for i, signal in enumerate(signals):
+            event_data = {
+                "event": "signal",
+                "index": i + 1,
+                "total": len(signals),
+                "signal": signal,
+            }
+            yield f"data: {json.dumps(event_data)}\n\n"
+            await asyncio.sleep(1.5)
+
+        # Send completion event
+        complete = {
+            "event": "scenario_complete",
+            "scenario_id": scenario["scenario_id"],
+            "signals_streamed": len(signals),
+        }
+        yield f"data: {json.dumps(complete)}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
