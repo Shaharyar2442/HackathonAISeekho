@@ -5,9 +5,13 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(const CIROApp());
 }
 
@@ -272,13 +276,14 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     // Connect to backend WebSocket for live dashboard feed
-    _channel = WebSocketChannel.connect(Uri.parse('ws://10.188.25.60:8000/ws/signals'));
+    final wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
+    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
     _channel.stream.listen((message) {
       if (!mounted) return;
       final data = jsonDecode(message);
       setState(() {
         _liveSignals.insert(0, data['text']);
-        if (_liveSignals.length > 5) _liveSignals.removeLast(); // keep only last 5
+        // Cache locally; only top 5 shown in UI
       });
     }, onError: (e) {
       print("WebSocket error: $e");
@@ -329,7 +334,7 @@ class _MapScreenState extends State<MapScreen> {
                         ],
                       ),
                       const SizedBox(height: 8),
-                      ..._liveSignals.map((s) => Padding(
+                      ..._liveSignals.take(5).map((s) => Padding(
                         padding: const EdgeInsets.only(bottom: 4.0),
                         child: Text(s, style: Theme.of(context).textTheme.bodySmall),
                       )).toList(),
