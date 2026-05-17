@@ -9,8 +9,13 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'api_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    print("Error loading .env in main: $e");
+  }
   runApp(const CIROApp());
 }
 
@@ -89,12 +94,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Future<void> _initializeApp() async {
     final startTime = DateTime.now();
     
-    try {
-      // Perform fast async initialization
-      await dotenv.load(fileName: ".env");
-    } catch (e) {
-      print("Error loading .env in Splash: $e");
-    }
+    // dotenv is now loaded in main()
 
     // Ensure splash is visible for at least 2.5 seconds for branding and premium feel
     final elapsedTime = DateTime.now().difference(startTime);
@@ -445,31 +445,76 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late WebSocketChannel _channel;
-  final List<String> _liveSignals = [];
+  WebSocketChannel? _channel;
+  final List<Map<String, dynamic>> _liveSignals = [];
+  bool _wsConnected = false;
+
+  final Map<String, LatLng> _zoneCoordinates = {
+    'G-10': const LatLng(33.6738, 73.0135),
+    'G-11': const LatLng(33.6651, 72.9922),
+    'F-8': const LatLng(33.7082, 73.0374),
+    'I-8': const LatLng(33.6690, 73.0760),
+    'Blue Area': const LatLng(33.7225, 73.0805),
+  };
 
   @override
   void initState() {
     super.initState();
-    // Connect to backend WebSocket for live dashboard feed
-    final wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
-    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-    _channel.stream.listen((message) {
-      if (!mounted) return;
-      final data = jsonDecode(message);
-      setState(() {
-        _liveSignals.insert(0, data['text']);
-        // Cache locally; only top 5 shown in UI
+    // Defer WebSocket connection to after the first frame so dotenv is guaranteed loaded
+    WidgetsBinding.instance.addPostFrameCallback((_) => _connectWebSocket());
+  }
+
+  void _connectWebSocket() {
+    if (_wsConnected || !mounted) return;
+    try {
+      // Read from env; auto-convert http(s):// → ws(s):// if misconfigured
+      String wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
+      wsUrl = wsUrl
+          .replaceFirst('https://', 'wss://')
+          .replaceFirst('http://', 'ws://');
+
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      _wsConnected = true;
+      _channel!.stream.listen((message) {
+        if (!mounted) return;
+        final data = jsonDecode(message);
+        if (data is Map<String, dynamic>) {
+          setState(() {
+            _liveSignals.insert(0, data);
+          });
+        }
+      }, onError: (e) {
+        print("WebSocket error: $e");
       });
-    }, onError: (e) {
-      print("WebSocket error: $e");
-    });
+    } catch (e) {
+      print("WebSocket connect error: $e");
+    }
   }
 
   @override
   void dispose() {
-    _channel.sink.close();
+    _channel?.sink.close();
     super.dispose();
+  }
+
+  Set<Marker> _buildMarkers() {
+    return _liveSignals.map((signal) {
+      final locName = signal['location'] as String?;
+      final latLng = _zoneCoordinates[locName];
+      if (latLng == null) return null;
+      
+      return Marker(
+        markerId: MarkerId(signal['text'] ?? DateTime.now().toString()),
+        position: latLng,
+        infoWindow: InfoWindow(
+          title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
+          snippet: signal['text'] ?? '',
+        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(
+          (signal['severity'] ?? 1) >= 4 ? BitmapDescriptor.hueRed : BitmapDescriptor.hueOrange,
+        ),
+      );
+    }).whereType<Marker>().toSet();
   }
 
   @override
@@ -478,12 +523,15 @@ class _MapScreenState extends State<MapScreen> {
       body: SafeArea(
         child: Stack(
           children: [
-            const GoogleMap(
-              myLocationButtonEnabled: true,
-              zoomControlsEnabled: false,
-              initialCameraPosition: CameraPosition(
-                target: LatLng(33.6844, 73.0479),
-                zoom: 12.0,
+            Positioned.fill(
+              child: GoogleMap(
+                myLocationButtonEnabled: true,
+                zoomControlsEnabled: false,
+                initialCameraPosition: const CameraPosition(
+                  target: LatLng(33.6844, 73.0479),
+                  zoom: 12.0,
+                ),
+                markers: _buildMarkers(),
               ),
             ),
             if (_liveSignals.isNotEmpty)
@@ -512,7 +560,7 @@ class _MapScreenState extends State<MapScreen> {
                       const SizedBox(height: 8),
                       ..._liveSignals.take(5).map((s) => Padding(
                         padding: const EdgeInsets.only(bottom: 4.0),
-                        child: Text(s, style: Theme.of(context).textTheme.bodySmall),
+                        child: Text(s['text'] ?? 'Unknown signal', style: Theme.of(context).textTheme.bodySmall),
                       )).toList(),
                     ],
                   ),
