@@ -232,10 +232,7 @@ async def simulate_action(request: SimulateRequest):
     return {"simulation_result": result.model_dump()}
 
 
-@app.get("/api/health")
-async def health_check():
-    """Quick health probe used by the dashboard and CI."""
-    return {"status": "ok", "service": "CIRO", "timestamp": datetime.now().isoformat()}
+# (Duplicate /api/health route removed — see line 130 for the canonical definition)
 
 
 # ------------------------------------------------------------------ #
