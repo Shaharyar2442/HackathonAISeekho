@@ -51,21 +51,14 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.13.1
-  flutter_native_splash: ^2.4.0
 
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "logo_padded.png"
+  # Note: Customized in res/values/colors.xml (#F8FAFC) & res/values-night/colors.xml (#0F172A)
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "logo_padded.png"
-
-flutter_native_splash:
-  color: "#FFFFFF"
-  image: "logo_padded.png"
-  android_12:
-    image: "logo_padded.png"
-    color: "#FFFFFF"
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
