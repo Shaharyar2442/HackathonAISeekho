@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -14,6 +12,7 @@ import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
 
 void main() async {
@@ -311,10 +310,10 @@ class _HomeScreenState extends State<HomeScreen> {
   
   double? _selectedLat;
   double? _selectedLng;
-  String? selectedType = 'Flood';
+  String? selectedType = 'Urban Flooding';
   bool _isLoading = false;
   
-  final List<String> types = ['Flood', 'Accident', 'Power Outage', 'Fire', 'Traffic'];
+  final List<String> types = ['Urban Flooding', 'Severe Accident', 'Power Infrastructure', 'Fire Hazard', 'Traffic Gridlock'];
 
   @override
   void dispose() {
@@ -578,11 +577,26 @@ class _MapScreenState extends State<MapScreen> {
   final ScrollController _feedScrollController = ScrollController();
 
   final Map<String, LatLng> _zoneCoordinates = {
-    'G-10': const LatLng(33.6738, 73.0135),
-    'G-11': const LatLng(33.6651, 72.9922),
-    'F-8': const LatLng(33.7082, 73.0374),
-    'I-8': const LatLng(33.6690, 73.0760),
-    'Blue Area': const LatLng(33.7225, 73.0805),
+    'G-6':  const LatLng(33.7294, 73.0811),
+    'G-7':  const LatLng(33.7220, 73.0770),
+    'G-8':  const LatLng(33.7130, 73.0570),
+    'G-9':  const LatLng(33.7070, 73.0480),
+    'G-10': const LatLng(33.6990, 73.0390),
+    'G-11': const LatLng(33.6910, 73.0300),
+    'F-6':  const LatLng(33.7310, 73.0660),
+    'F-7':  const LatLng(33.7250, 73.0560),
+    'F-8':  const LatLng(33.7150, 73.0430),
+    'F-10': const LatLng(33.7000, 73.0240),
+    'F-11': const LatLng(33.6930, 73.0140),
+    'I-8':  const LatLng(33.6840, 73.0710),
+    'I-9':  const LatLng(33.6780, 73.0560),
+    'I-10': const LatLng(33.6710, 73.0420),
+    'E-11': const LatLng(33.7160, 73.0080),
+    'Blue Area': const LatLng(33.7230, 73.0885),
+    'Faizabad':  const LatLng(33.6960, 73.0630),
+    'Kashmir Highway': const LatLng(33.6900, 73.0440),
+    'Margalla Road':   const LatLng(33.7400, 73.0650),
+    'IJP Road':        const LatLng(33.6800, 73.0750),
   };
 
   @override
@@ -901,7 +915,7 @@ class ResponseScreen extends StatelessWidget {
       'reasoning': 'No data available'
     };
 
-    final rawActions = data?['actions'] ?? [];
+    final rawActions = data?['actions_recommended'] ?? data?['actions'] ?? [];
     final agentTrace = data?['agentTrace'] ?? data?['agent_trace'] ?? [];
     
     // Safely parse values
@@ -1020,70 +1034,174 @@ class ResponseScreen extends StatelessWidget {
                 }),
               
               const SizedBox(height: 24),
-              Card(
-                elevation: 0,
-                color: theme.colorScheme.surfaceContainerHighest ?? theme.colorScheme.surfaceVariant,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                clipBehavior: Clip.antiAlias,
-                child: ExpansionTile(
-                  title: Text(
-                    'View Agent Reasoning Trace',
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
-                  ),
-                  leading: const Icon(Icons.memory),
-                  children: [
-                    if (agentTrace.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: Text("No trace available."),
-                      )
-                    else
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: List.generate(agentTrace.length, (index) {
-                            final trace = agentTrace[index];
-                            final steps = trace['reasoning_steps'] as List<dynamic>? ?? [];
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 16.0),
-                              color: theme.colorScheme.surface,
-                              elevation: 1,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      trace['agent_name'] ?? 'Unknown Agent',
-                                      style: theme.textTheme.titleMedium?.copyWith(
-                                        color: theme.colorScheme.primary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    ...List.generate(steps.length, (sIndex) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(bottom: 4.0),
-                                        child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text('${sIndex + 1}. ', style: TextStyle(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurfaceVariant)),
-                                            Expanded(child: Text(steps[sIndex].toString(), style: TextStyle(color: theme.colorScheme.onSurface))),
-                                          ],
-                                        ),
-                                      );
-                                    }),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
-                        ),
-                      )
-                  ],
-                ),
+
+              // ── Agentic Pipeline Visualization ──
+              Text(
+                'Agentic Pipeline Trace',
+                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600, color: theme.colorScheme.primary),
               ),
+              const SizedBox(height: 8),
+              Text(
+                'Sensor → Analyst → Coordinator → Simulator',
+                style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.5)),
+              ),
+              const SizedBox(height: 16),
+
+              // Pipeline step indicators
+              Row(
+                children: [
+                  for (int i = 0; i < 4; i++) ...[
+                    Expanded(
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 16,
+                            backgroundColor: i < (agentTrace as List).length
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.onSurface.withOpacity(0.2),
+                            child: Icon(
+                              [Icons.sensors, Icons.analytics, Icons.hub, Icons.science][i],
+                              size: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            ['Sensor', 'Analyst', 'Coord.', 'Simulator'][i],
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              fontWeight: i < (agentTrace as List).length ? FontWeight.bold : FontWeight.normal,
+                              color: i < (agentTrace as List).length ? theme.colorScheme.primary : theme.colorScheme.onSurface.withOpacity(0.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (i < 3)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Icon(Icons.arrow_forward, size: 14, color: theme.colorScheme.onSurface.withOpacity(0.3)),
+                      ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Agent trace cards
+              if (agentTrace.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text("No trace available."),
+                )
+              else
+                ...List.generate((agentTrace as List).length, (index) {
+                  final trace = agentTrace[index];
+                  final steps = trace['reasoning_steps'] as List<dynamic>? ?? [];
+                  final agentIcons = {
+                    'Sensor Agent': Icons.sensors,
+                    'Analyst Agent': Icons.analytics,
+                    'Coordinator Agent': Icons.hub,
+                    'Simulator Agent': Icons.science,
+                  };
+                  final agentName = trace['agent_name'] ?? 'Agent ${index + 1}';
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 12.0),
+                    elevation: 0,
+                    color: theme.colorScheme.onSurface.withOpacity(0.05),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    clipBehavior: Clip.antiAlias,
+                    child: ExpansionTile(
+                      leading: CircleAvatar(
+                        backgroundColor: theme.colorScheme.primary.withOpacity(0.15),
+                        child: Icon(agentIcons[agentName] ?? Icons.memory, color: theme.colorScheme.primary, size: 20),
+                      ),
+                      title: Text(agentName, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (trace['input_summary'] != null)
+                            Text('In: ${trace['input_summary']}', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurface.withOpacity(0.6))),
+                          if (trace['output_summary'] != null)
+                            Text('Out: ${trace['output_summary']}', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Reasoning Steps:', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              ...List.generate(steps.length, (sIndex) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 6.0),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 22, height: 22,
+                                        margin: const EdgeInsets.only(right: 8, top: 2),
+                                        decoration: BoxDecoration(
+                                          color: theme.colorScheme.primary.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Center(child: Text('${sIndex + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: theme.colorScheme.primary))),
+                                      ),
+                                      Expanded(child: Text(steps[sIndex].toString(), style: theme.textTheme.bodySmall)),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+              const SizedBox(height: 16),
+
+              // Download / Share Agent Trace button
+              if ((agentTrace as List).isNotEmpty)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    side: BorderSide(color: theme.colorScheme.primary.withOpacity(0.5)),
+                  ),
+                  icon: const Icon(Icons.download_rounded),
+                  label: const Text('Download Agent Trace (JSON)'),
+                  onPressed: () async {
+                    try {
+                      final traceJson = const JsonEncoder.withIndent('  ').convert({
+                        'crisis': crisis,
+                        'actions': rawActions,
+                        'agent_trace': agentTrace,
+                        'exported_at': DateTime.now().toIso8601String(),
+                      });
+                      final dir = await getApplicationDocumentsDirectory();
+                      final file = File('${dir.path}/ciro_agent_trace_${DateTime.now().millisecondsSinceEpoch}.json');
+                      await file.writeAsString(traceJson);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Trace saved to: ${file.path}'),
+                            backgroundColor: Colors.green,
+                            action: SnackBarAction(label: 'OK', textColor: Colors.white, onPressed: () {}),
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to save: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                ),
+
               const SizedBox(height: 24),
             ],
           ),
@@ -1249,6 +1367,7 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
             'step': execLogs.length,
             'log': '[Simulator] Simulation completed successfully.',
             'result': {
+              'before_state': result['before_state'],
               'after_state': result['after_state'],
             }
           };
@@ -1325,11 +1444,7 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
                       return Step(
                         title: const Text('Evaluation Complete'),
                         content: _isComplete 
-                          ? Container(
-                              padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                              child: Text('After state: ${_result?['after_state']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                            )
+                          ? _buildBeforeAfterCard(context)
                           : const Text('Calculating final metrics...'),
                         state: _isComplete ? StepState.complete : (_currentStep == index ? StepState.editing : StepState.indexed),
                         isActive: _currentStep >= index,
@@ -1367,6 +1482,55 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBeforeAfterCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final before = _result?['before_state'] as Map<String, dynamic>? ?? {};
+    final after = _result?['after_state'] as Map<String, dynamic>? ?? {};
+    final allKeys = {...before.keys, ...after.keys}.toList();
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.check_circle, color: Colors.green, size: 20),
+            const SizedBox(width: 8),
+            Text('Before / After', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+          ]),
+          const SizedBox(height: 12),
+          Row(children: const [
+            Expanded(flex: 3, child: Text('Metric', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11))),
+            Expanded(flex: 2, child: Text('Before', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.orange))),
+            Expanded(flex: 2, child: Text('After', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.green))),
+          ]),
+          const Divider(height: 12),
+          ...allKeys.map((key) {
+            final bv = before[key]?.toString() ?? '-';
+            final av = after[key]?.toString() ?? '-';
+            final changed = bv != av;
+            final label = key.replaceAll('_', ' ');
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(children: [
+                Expanded(flex: 3, child: Text(label, style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurface.withOpacity(0.8)))),
+                Expanded(flex: 2, child: Text(bv, style: TextStyle(fontSize: 12, color: Colors.orange.shade700))),
+                Expanded(flex: 2, child: Row(children: [
+                  Text(av, style: TextStyle(fontSize: 12, fontWeight: changed ? FontWeight.bold : FontWeight.normal, color: Colors.green.shade700)),
+                  if (changed) const Padding(padding: EdgeInsets.only(left: 4), child: Icon(Icons.trending_up, size: 14, color: Colors.green)),
+                ])),
+              ]),
+            );
+          }),
         ],
       ),
     );

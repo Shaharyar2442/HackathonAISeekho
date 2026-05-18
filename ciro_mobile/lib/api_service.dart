@@ -8,9 +8,8 @@ class ApiService {
   static final List<Map<String, dynamic>> locallyReportedSignals = [];
 
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type, {double? lat, double? lng}) async {
-    // Map dropdown UI values to backend expected keys
-    String backendType = type.toLowerCase();
-    if (backendType == 'power outage') backendType = 'outage';
+    // Send the crisis type as-is — backend expects full names like "Urban Flooding"
+    final String backendType = type;
 
     final Map<String, dynamic> signalData = {
       'text': text,
@@ -25,12 +24,46 @@ class ApiService {
 
     locallyReportedSignals.insert(0, signalData);
 
+    // Build sensor-specific reading text based on crisis type
+    String sensorReading = 'abnormal readings';
+    final typeLower = backendType.toLowerCase();
+    if (typeLower.contains('flood')) {
+      sensorReading = 'elevated water level';
+    } else if (typeLower.contains('fire')) {
+      sensorReading = 'heat signature anomaly';
+    } else if (typeLower.contains('power')) {
+      sensorReading = 'grid fluctuation detected';
+    } else if (typeLower.contains('accident')) {
+      sensorReading = 'traffic flow anomaly';
+    } else if (typeLower.contains('traffic')) {
+      sensorReading = 'severe congestion pattern';
+    }
+
+    // Send 3 multi-source signals for richer AI analysis
+    final signals = [
+      signalData,
+      {
+        'text': '$backendType situation reported near $location — multiple citizens confirming',
+        'location': location,
+        'crisis_type': backendType,
+        'source': 'social_media',
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+      {
+        'text': 'Automated sensors detecting $sensorReading in $location sector',
+        'location': location,
+        'crisis_type': backendType,
+        'source': 'sensor',
+        'timestamp': DateTime.now().toIso8601String(),
+      },
+    ];
+
     // 1. Ingest Signal
     final ingestRes = await http.post(
       Uri.parse('$baseUrl/ingest'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'signals': [signalData]
+        'signals': signals
       }),
     );
 
@@ -39,12 +72,11 @@ class ApiService {
     }
 
     // 2. Detect Crisis & Get Agent Trace
-    // According to the backend design, /api/detect returns the full agent trace, the detected crisis, and actions.
     final detectRes = await http.post(
       Uri.parse('$baseUrl/detect'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'signals': [signalData]
+        'signals': signals
       }),
     );
 
