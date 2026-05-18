@@ -49,6 +49,94 @@ class SimulatorAgentOutput(BaseModel):
     reasoning_steps: list[str]
 
 
+# ------------------------------------------------------------------ #
+# Fix #5: Islamabad Location Context Map
+# Gives agents real-world knowledge about each sector so responses
+# are grounded in actual geography instead of generic templates.
+# ------------------------------------------------------------------ #
+
+ISLAMABAD_CONTEXT = {
+    "G-10": (
+        "G-10 Markaz is a major commercial hub in Islamabad. "
+        "Poly Clinic Hospital (PIMS annex) is inside G-10/3. Adjacent to Faizabad Interchange (connects to Rawalpindi). "
+        "G-10 nullah (storm drain) runs through G-10/1 and frequently overflows during monsoon. "
+        "CDA maintains drainage pumps at G-10/4 junction. Nearest fire station: Sector F-10 Fire Station (2.5 km). "
+        "High-density residential + commercial. Population ~45,000. Schools: Islamabad Model College G-10, IMCG G-10."
+    ),
+    "F-8": (
+        "F-8 Markaz is one of the oldest commercial areas. Located along Nazimuddin Road. "
+        "F-8 Kachehri (courts complex) generates heavy daytime traffic. "
+        "Nearest hospitals: Shifa International Hospital (F-8/1, 0.8 km), Quaid-e-Azam International Hospital (3 km). "
+        "Jinnah Avenue runs along its southern edge — major 6-lane arterial road. "
+        "Centaurus Mall is 1.5 km east. Heavy evening congestion. Population ~38,000. "
+        "ITP traffic signals at F-8/Jinnah Avenue and F-8/Nazimuddin intersections."
+    ),
+    "Blue Area": (
+        "Blue Area is Islamabad's central business district along Jinnah Avenue between sectors F-6 and G-6. "
+        "Contains major banks (HBL, UBL, MCB headquarters), corporate offices, and federal government buildings. "
+        "IESCO Grid-B supplies power; critical load area. Population: ~5,000 residents but 80,000+ daily workers. "
+        "Nearest hospital: PIMS (Pakistan Institute of Medical Sciences, 3 km via Shakarparian). "
+        "Stock Exchange building, Supreme Court nearby. Single main road (Jinnah Avenue) — "
+        "any blockage causes cascading gridlock across F-6, F-7, G-6, G-7."
+    ),
+    "I-8": (
+        "I-8 is a mixed-use sector bordering Faizabad. I-8 Markaz has heavy commercial activity. "
+        "GT Road (Grand Trunk Road) traffic from Rawalpindi enters Islamabad through I-8. "
+        "Heavy truck and trailer traffic. Industrial units in I-8/3 and I-8/4. "
+        "Nullah runs through I-8/1 — high flood risk during monsoon. "
+        "Nearest hospital: Ali Medical Centre I-8 Markaz, PIMS (5 km). "
+        "CDA maintenance depot in I-8/2. Population ~40,000."
+    ),
+    "G-11": (
+        "G-11 is adjacent to NUST University (National University of Sciences and Technology). "
+        "Student population ~15,000 in surrounding hostels. G-11 Markaz is a busy commercial area. "
+        "Single main entry/exit road creates bottleneck during peak hours. "
+        "Nearest hospital: Quaid-e-Azam International (2 km), PIMS (6 km). "
+        "Limited ambulance coverage — relies on Rescue 1122 Islamabad station in G-10. "
+        "G-11/1 has several schools including Islamabad Model School. Population ~35,000."
+    ),
+    "F-6": (
+        "F-6 (Super Market) is one of the busiest commercial hubs in Islamabad. "
+        "Kohsar Market (F-6/3) is a high-end dining/shopping area. "
+        "Heavy pedestrian traffic especially evenings and weekends. "
+        "Nearest hospital: Kulsum International Hospital F-6/1 (0.5 km). "
+        "Margalla Road runs along its northern edge — connects to Daman-e-Koh and Margalla Hills. "
+        "Diplomatic enclave nearby. Population ~30,000."
+    ),
+    "F-7": (
+        "F-7 Markaz (Jinnah Super Market) is the most popular commercial area in Islamabad. "
+        "Extremely heavy foot traffic. Street food vendors and open-air market stalls. "
+        "Parking congestion is chronic. Adjacent to F-7/4 residential (high density). "
+        "Nearest hospital: Maroof International Hospital F-7 Markaz (0.2 km). "
+        "Fire risk: high due to densely packed market stalls with gas cylinders. "
+        "ITP deploys extra wardens here on weekends. Population ~32,000."
+    ),
+    "G-9": (
+        "G-9 Markaz has Karachi Company (large commercial market). Heavy vehicular and pedestrian traffic. "
+        "Nullah passes through G-9/1 — flooding during heavy rains. "
+        "Nearest hospital: Federal Government Services Hospital G-9 (FGSH, 0.3 km). "
+        "Adjacent to Kashmir Highway — major connector between sectors. "
+        "CDA water supply tanker depot in G-9/4. Population ~42,000."
+    ),
+    "E-11": (
+        "E-11 is a developing sector near Margalla Hills. MPCHS (Multi-Professional Cooperative Housing Society). "
+        "Hilly terrain makes flood drainage problematic. Limited CDA infrastructure. "
+        "Nearest hospital: Kulsoom International (4 km in F-6). "
+        "Single access road from Margalla Avenue. Population ~20,000 (growing rapidly)."
+    ),
+    "Sector F-10": (
+        "F-10 Markaz has moderate commercial activity. F-10 Fire Station serves F-8 through G-11. "
+        "Faisal Mosque is 2 km north. Trail 5 hikers pass through frequently. "
+        "Nearest hospital: Shifa International (2 km). Population ~28,000."
+    ),
+}
+
+DEFAULT_CONTEXT = (
+    "General Islamabad sector. Nearest emergency services: Rescue 1122 (dial 1122), "
+    "Police (dial 15), Fire Brigade (dial 16). Nearest major hospital: PIMS or Shifa International."
+)
+
+
 class CIROPipeline:
     """Runtime agent orchestrator using Gemini 2.5 Flash."""
 
@@ -84,11 +172,30 @@ class CIROPipeline:
         prompt = f"Raw Signals: {json.dumps(raw_signals)}\n\nNormalise these crisis signals into a structured JSON list of CrisisSignal objects."
         
         sys_instruct = (
-            "You are a Sensor Agent in Islamabad, Pakistan. "
-            "Your task is to normalise noisy, informal crisis signals (including Roman Urdu like 'pani bhar gaya hai', 'rasta band hai') "
-            "into structured JSON objects. Recognize local sectors (e.g., G-10, F-8, Blue Area). "
-            "You MUST use explicit Chain-of-Thought reasoning. Break down your logic step-by-step in the reasoning_steps array "
-            "BEFORE generating the final output list. Explain how you inferred the severity and translated the text."
+            "You are a Sensor Agent operating in Islamabad, Pakistan — a metropolitan of 2.5 million people "
+            "divided into lettered/numbered sectors (F-6, G-10, I-8, Blue Area, etc.).\n\n"
+            "YOUR TASK: Normalise noisy, informal crisis signals into structured CrisisSignal JSON objects.\n\n"
+            "LANGUAGE HANDLING:\n"
+            "- Signals may arrive in Roman Urdu (Urdu written in English letters). Common examples:\n"
+            "  'pani bhar gaya' = water has flooded, 'bijli gayi' = power gone, 'aag lag gayi' = fire broke out,\n"
+            "  'sadak band' = road blocked, 'gaari ka accident' = car accident, 'rasta jam' = traffic jam,\n"
+            "  'baarish' = rain, 'nala' = storm drain, 'gutter overflow' = sewage overflow\n"
+            "- Translate the meaning but preserve the original text in the 'text' field.\n\n"
+            "SEVERITY INFERENCE (this is critical — do NOT default to 3):\n"
+            "- Level 1: Minor/routine — 'thodi baarish', 'halka jam', 'choti si problem'\n"
+            "- Level 2: Noticeable — 'pani jama ho raha hai', 'traffic slow hai'\n"
+            "- Level 3: Significant — 'sadak band hai', 'bijli nahi aa rahi', 'accident hua'\n"
+            "- Level 4: Severe — 'log phanse hain', 'pani ghar mein aa gaya', 'bohot bura accident'\n"
+            "- Level 5: Critical/Life-threatening — 'log doob rahe hain', 'aag phayl gayi', 'mayyat', 'fatalities'\n\n"
+            "CRISIS TYPE MAPPING:\n"
+            "- Urban Flooding: pani, baarish, nala overflow, doob, flood, sewer\n"
+            "- Severe Accident: accident, crash, takkar, zakhmi, injured, collision\n"
+            "- Power Infrastructure: bijli, light, WAPDA, IESCO, transformer, blackout, generator\n"
+            "- Fire Hazard: aag, fire, dhuaan (smoke), jalaa, cylinder blast, short circuit\n"
+            "- Traffic Gridlock: jam, rasta band, traffic, road blocked, congestion\n\n"
+            "You MUST use explicit Chain-of-Thought reasoning in reasoning_steps BEFORE generating output. "
+            "Explain: (1) what language the signal is in, (2) how you inferred the crisis type, "
+            "(3) why you assigned that specific severity level."
         )
         
         response = self.client.models.generate_content(
@@ -120,10 +227,27 @@ class CIROPipeline:
         prompt = f"Normalised Signals: {json.dumps(signals_json)}\n\nAnalyse these CrisisSignal objects and produce a DetectedCrisis assessment."
         
         sys_instruct = (
-            "You are an Analyst Agent operating in Islamabad. Analyse the provided CrisisSignal objects. "
-            "You MUST use explicit Chain-of-Thought reasoning. In your reasoning_steps, explicitly mention: "
-            "1. Correlating signals to find clusters. 2. Translating any local context. 3. Estimating severity based on NDMA guidelines. "
-            "Only after documenting your logic, return the final DetectedCrisis JSON with confidence score and summary."
+            "You are an Analyst Agent — a crisis intelligence specialist for Islamabad metropolitan area.\n\n"
+            "YOUR TASK: Analyse normalised CrisisSignal objects and produce a single DetectedCrisis verdict.\n\n"
+            "ANALYSIS FRAMEWORK:\n"
+            "1. SIGNAL CORRELATION: Look at all signals together. Multiple reports from the same area = higher confidence. "
+            "Mixed crisis types from same location may indicate cascading crisis (e.g., flooding → traffic → power outage).\n"
+            "2. SEVERITY ASSESSMENT using Pakistan NDMA (National Disaster Management Authority) scale:\n"
+            "   - Level 1-2: Localised, manageable with existing resources\n"
+            "   - Level 3: District-level response needed, CDA/RDA involvement\n"
+            "   - Level 4: Multi-agency coordination required (NDMA, military, hospitals)\n"
+            "   - Level 5: Life-threatening emergency, full national response protocol\n"
+            "3. CONFIDENCE SCORING:\n"
+            "   - 0.50-0.65: Single unverified source\n"
+            "   - 0.65-0.80: Multiple reports but unconfirmed\n"
+            "   - 0.80-0.90: Cross-source verification (social media + sensor + user reports)\n"
+            "   - 0.90-0.99: Confirmed by official sources or overwhelming signal volume\n"
+            "4. CRISIS TYPE must be one of: Urban Flooding, Severe Accident, Power Infrastructure, Fire Hazard, Traffic Gridlock\n\n"
+            "REASONING FIELD: Write a detailed 2-3 sentence explanation of your assessment. "
+            "Mention specific signal texts that influenced your verdict. "
+            "Do NOT use generic language like 'based on the signals received'.\n\n"
+            "Chain-of-Thought: Document your full reasoning in reasoning_steps array. "
+            "Show your analytical process — signal grouping, severity derivation, confidence calculation."
         )
         
         response = self.client.models.generate_content(
@@ -133,7 +257,7 @@ class CIROPipeline:
                 system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=AnalystAgentOutput,
-                temperature=0.2,
+                temperature=0.5,  # Fix #3: Higher temp for varied reasoning
             )
         )
         
@@ -151,13 +275,68 @@ class CIROPipeline:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def run_coordinator_agent(self, crisis: DetectedCrisis) -> list[ResponseAction]:
-        prompt = f"Detected Crisis: {json.dumps(crisis.model_dump())}\n\nGiven this crisis, return JSON array of ResponseAction objects prioritised P1/P2/P3 with realistic Islamabad-specific actions."
+        # Fix #5: Inject real location context
+        location_info = ISLAMABAD_CONTEXT.get(crisis.location, DEFAULT_CONTEXT)
+        
+        prompt = (
+            f"Detected Crisis: {json.dumps(crisis.model_dump())}\n"
+            f"Location Intelligence: {location_info}\n\n"
+            f"Given this crisis and location context, generate a prioritised action plan "
+            f"with 3-5 ResponseAction objects. Each action MUST reference specific Islamabad "
+            f"agencies, hospitals, roads, or landmarks from the location intelligence."
+        )
         
         sys_instruct = (
-            "You are a Coordinator Agent for Islamabad Emergency Response. "
-            "You MUST use explicit Chain-of-Thought reasoning. Document your thought process in reasoning_steps: "
-            "1. Evaluate resources needed for this specific sector. 2. Prioritize actions (P1/P2/P3). 3. Design realistic interventions. "
-            "Then, return the JSON array of ResponseAction objects."
+            "You are a Coordinator Agent — the emergency response planner for Islamabad Capital Territory.\n\n"
+            "You MUST generate FUNDAMENTALLY DIFFERENT action plans based on the crisis type. "
+            "Do NOT produce generic 'dispatch + reroute + alert' for every crisis.\n\n"
+            "CRISIS-SPECIFIC RESPONSE PROTOCOLS:\n\n"
+            "🌊 URBAN FLOODING:\n"
+            "  P1: Deploy CDA dewatering pumps to flooded nullahs. Contact WASA (Water and Sanitation Agency) "
+            "      for emergency drain clearance. If water > 2 feet, request NDMA rescue boats.\n"
+            "  P2: Activate flood relief camps at nearest government schools/colleges. "
+            "      Distribute clean water (bore water may be contaminated). Contact PHA (Parks dept) for tree clearance.\n"
+            "  P3: Issue SMS flood warnings via PTA emergency broadcast. Post on CDA Twitter. "
+            "      Alert Rescue 1122 for stranded citizens. Close underpasses (IJP Road, Faizabad, 9th Avenue).\n\n"
+            "🚗 SEVERE ACCIDENT:\n"
+            "  P1: Dispatch Rescue 1122 ambulances from nearest station. Notify nearest Level-1 trauma centre "
+            "      (PIMS Emergency, Shifa ER, or Holy Family Hospital Rawalpindi). "
+            "      If multiple casualties, activate Mass Casualty Protocol — call for blood bank mobilisation.\n"
+            "  P2: Deploy ITP (Islamabad Traffic Police) for scene perimeter. "
+            "      Request Motorway Police if on highway. Set up on-scene triage (red/yellow/green tagging).\n"
+            "  P3: Reroute traffic via alternate corridors. Push Google Maps incident alert. "
+            "      Notify NHMP (National Highway and Motorway Police) if expressway involved.\n\n"
+            "⚡ POWER INFRASTRUCTURE:\n"
+            "  P1: Contact IESCO (Islamabad Electric Supply Company) control room at their 24/7 helpline (118). "
+            "      Identify which grid/feeder is affected. If transformer explosion, dispatch fire brigade.\n"
+            "  P2: Deploy mobile generators to critical facilities — hospitals, water pumping stations, "
+            "      traffic signals. Coordinate with hospital UPS battery backup teams.\n"
+            "  P3: Issue estimated restoration time via IESCO social media. Alert citizens to unplug "
+            "      sensitive electronics. Notify PEPCO (Pakistan Electric Power Company) if grid-wide.\n\n"
+            "🔥 FIRE HAZARD:\n"
+            "  P1: Dispatch fire brigade from nearest CDA fire station (F-10 station covers F-7 to G-11, "
+            "      I-9 station covers I-8 to I-11). If market fire, request additional tenders. "
+            "      Cut gas supply — contact SNGPL (Sui Northern Gas) emergency line.\n"
+            "  P2: Evacuate 500m radius. Establish burn treatment staging area. "
+            "      Alert Pakistan Burn Centre at PIMS and DHQ Rawalpindi. Close gas mains.\n"
+            "  P3: Issue evacuation advisory via mosque loudspeakers and PTA broadcast. "
+            "      Deploy crowd control via ITP. Notify CDA building inspection for structural assessment.\n\n"
+            "🚦 TRAFFIC GRIDLOCK:\n"
+            "  P1: Activate ITP signal override at congested intersections. "
+            "      Deploy traffic wardens with hand signals at key junctions.\n"
+            "  P2: Push real-time reroute advisory via Google Maps / Waze incident reports. "
+            "      Open service roads and alternative routes (Kashmir Highway, Margalla Road, Park Road).\n"
+            "  P3: Notify Metro Bus Authority if bus routes affected. "
+            "      Alert university/school administrations to stagger dismissal times.\n\n"
+            "IMPORTANT RULES:\n"
+            "- Use REAL Islamabad agency names, hospital names, road names from the Location Intelligence.\n"
+            "- Each action description must be SPECIFIC to this crisis, not copy-paste templates.\n"
+            "- Generate 3-5 actions with proper P1/P2/P3 priority spread.\n"
+            "- Include estimated response times in estimated_impact field.\n\n"
+            "Chain-of-Thought: Document in reasoning_steps:\n"
+            "1. Which crisis-specific protocol you are activating and why.\n"
+            "2. Which specific agencies/hospitals you selected based on location proximity.\n"
+            "3. Why you prioritised each action at its level."
         )
         
         response = self.client.models.generate_content(
@@ -167,7 +346,7 @@ class CIROPipeline:
                 system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=CoordinatorAgentOutput,
-                temperature=0.2,
+                temperature=0.7,  # Fix #3: Higher temp for creative action plans
             )
         )
         
@@ -188,16 +367,22 @@ class CIROPipeline:
         actions_json = [a.model_dump() for a in actions]
         
         sys_instruct = (
-            "You are a Simulator Agent. You MUST use the calculate_simulation_metrics tool to simulate the execution of EACH response action. "
-            "Call the tool for each action type. After executing the tools, analyse the results and return them in the SimulatorAgentOutput JSON schema. "
-            "Include your Chain-of-Thought in reasoning_steps explaining the tool execution results."
+            "You are a Simulator Agent for Islamabad emergency response. "
+            "You MUST use the calculate_simulation_metrics tool to simulate the execution "
+            "of EACH response action. Call the tool once per action with the action_type and location.\n\n"
+            "After receiving tool results, analyse them and return the final SimulatorAgentOutput. "
+            "In reasoning_steps, explain:\n"
+            "1. What each tool call returned (before/after states).\n"
+            "2. Which actions had the highest impact and why.\n"
+            "3. Any cascading effects (e.g., rerouting traffic also reduces accident risk).\n"
+            "4. Overall effectiveness assessment of the response plan."
         )
 
         chat = self.client.chats.create(
             model=self.model_name,
             config=types.GenerateContentConfig(
                 system_instruction=sys_instruct,
-                temperature=0.4,
+                temperature=0.6,  # Fix #3: Higher temp for varied simulation narratives
                 tools=[calculate_simulation_metrics]
             )
         )
