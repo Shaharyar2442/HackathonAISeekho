@@ -17,6 +17,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CIRO | Crisis Intelligence & Response Orchestrator</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -499,7 +501,7 @@
                 <summary style="cursor: pointer; color: var(--text-muted); font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">⚙️ Configuration & Demo Runner</summary>
                 <div style="display: flex; gap: 8px; align-items: center; margin-top: 8px; margin-bottom: 12px;">
                     <label style="font-size: 0.8rem; color: var(--text-muted);">API URL:</label>
-                    <input type="text" id="api-url-input" class="form-control" style="padding: 6px 10px; font-size: 0.8rem; height: auto;" value="https://ciro-backend-152360063189.asia-south1.run.app">
+                    <input type="text" id="api-url-input" class="form-control" style="padding: 6px 10px; font-size: 0.8rem; height: auto;" value="http://localhost:8000">
                     <button class="btn" style="padding: 6px 12px; font-size: 0.8rem; width: auto;" onclick="updateApiUrl()">Save</button>
                 </div>
                 <div class="scenario-row">
@@ -516,24 +518,45 @@
             </div>
             
             <div class="controls-row">
-                <div class="form-group" style="margin-bottom:0;">
+                <div class="form-group" style="margin-bottom:0; flex: 1;">
                     <label>Target Zone</label>
-                    <select id="crisis-zone" class="form-control">
-                        <option value="G-10">Sector G-10</option>
-                        <option value="G-11">Sector G-11</option>
-                        <option value="F-8">Sector F-8</option>
-                        <option value="I-8">Sector I-8</option>
-                        <option value="Blue Area">Blue Area CBD</option>
-                    </select>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="text" id="crisis-zone" class="form-control" list="zone-suggestions" placeholder="Type any location or select..." value="G-10" style="flex:1;">
+                        <button onclick="detectMyLocation()" title="Use my current location" style="background:var(--accent);border:none;color:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:1rem;flex-shrink:0;">📍</button>
+                    </div>
+                    <datalist id="zone-suggestions">
+                        <option value="G-6"></option>
+                        <option value="G-7"></option>
+                        <option value="G-8"></option>
+                        <option value="G-9"></option>
+                        <option value="G-10"></option>
+                        <option value="G-11"></option>
+                        <option value="F-6"></option>
+                        <option value="F-7"></option>
+                        <option value="F-8"></option>
+                        <option value="F-10"></option>
+                        <option value="F-11"></option>
+                        <option value="I-8"></option>
+                        <option value="I-9"></option>
+                        <option value="I-10"></option>
+                        <option value="E-11"></option>
+                        <option value="Blue Area"></option>
+                        <option value="Faizabad"></option>
+                        <option value="Kashmir Highway"></option>
+                        <option value="Margalla Road"></option>
+                        <option value="IJP Road"></option>
+                        <option value="Rawat"></option>
+                        <option value="Bahria Town"></option>
+                    </datalist>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label>Classification</label>
                     <select id="crisis-type" class="form-control">
-                        <option value="flood">Urban Flooding</option>
-                        <option value="accident">Severe Accident</option>
-                        <option value="outage">Power Infrastructure</option>
-                        <option value="fire">Fire Hazard</option>
-                        <option value="traffic">Traffic Gridlock</option>
+                        <option value="Urban Flooding">Urban Flooding</option>
+                        <option value="Severe Accident">Severe Accident</option>
+                        <option value="Power Infrastructure">Power Infrastructure</option>
+                        <option value="Fire Hazard">Fire Hazard</option>
+                        <option value="Traffic Gridlock">Traffic Gridlock</option>
                     </select>
                 </div>
             </div>
@@ -543,23 +566,8 @@
                 Initialize AI Analysis
             </button>
 
-            <div class="map-wrapper">
-                <svg class="map" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
-                    <rect id="zone-F-8" class="map-zone" x="150" y="50" width="130" height="90" onclick="highlightZone('F-8')" />
-                    <text class="map-label" x="215" y="95">F-8</text>
-
-                    <rect id="zone-G-10" class="map-zone" x="40" y="160" width="120" height="110" onclick="highlightZone('G-10')" />
-                    <text class="map-label" x="100" y="215">G-10</text>
-
-                    <rect id="zone-G-11" class="map-zone" x="40" y="290" width="120" height="90" onclick="highlightZone('G-11')" />
-                    <text class="map-label" x="100" y="335">G-11</text>
-
-                    <rect id="zone-Blue Area" class="map-zone" x="300" y="110" width="170" height="70" onclick="highlightZone('Blue Area')" />
-                    <text class="map-label" x="385" y="145">BLUE AREA</text>
-
-                    <rect id="zone-I-8" class="map-zone" x="300" y="220" width="140" height="110" onclick="highlightZone('I-8')" />
-                    <text class="map-label" x="370" y="275">I-8</text>
-                </svg>
+            <div class="map-wrapper" style="position:relative;">
+                <div id="leaflet-map" style="width:100%; height:340px; border-radius:16px; border:1px solid rgba(255,255,255,0.08);"></div>
                 <div class="zone-info" id="zone-info-panel">
                     Awaiting live detection events.
                 </div>
@@ -657,7 +665,7 @@
         // Clock functionality
         setInterval(() => { document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-US', { hour12: false }); }, 1000);
 
-        let API_BASE = 'https://ciro-backend-152360063189.asia-south1.run.app';
+        let API_BASE = 'http://localhost:8000';
         let WS_URL = API_BASE.startsWith('https') ? API_BASE.replace('https', 'wss') + '/ws/signals' : API_BASE.replace('http', 'ws') + '/ws/signals';
 
         // ── Enhancement: Store last agent trace for export ──
@@ -671,6 +679,39 @@
             WS_URL = API_BASE.startsWith('https') ? API_BASE.replace('https', 'wss') + '/ws/signals' : API_BASE.replace('http', 'ws') + '/ws/signals';
             if (socket) socket.close();
             connectWebSocket();
+        }
+
+        // ── Live Location Detection ──
+        function detectMyLocation() {
+            const zoneInput = document.getElementById('crisis-zone');
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+            zoneInput.value = 'Detecting...';
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    try {
+                        // Use free Nominatim reverse geocoding to get the address
+                        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`);
+                        const data = await res.json();
+                        const addr = data.address || {};
+                        // Try to extract sector/suburb name, fallback to neighbourhood, then full display
+                        const locationName = addr.suburb || addr.neighbourhood || addr.city_district || data.display_name.split(',')[0];
+                        zoneInput.value = locationName;
+                    } catch(e) {
+                        // Fallback: show raw coordinates
+                        zoneInput.value = `${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`;
+                    }
+                },
+                (error) => {
+                    zoneInput.value = 'G-10';
+                    alert('Location access denied. Please type a location manually.');
+                },
+                { enableHighAccuracy: true, timeout: 8000 }
+            );
         }
         let zoneDataMap = {}; 
         let socket;
@@ -763,34 +804,113 @@
             pulseMapZone(data.location, data.severity);
         }
         
+        // ── Leaflet Map Setup ──
+        const ZONE_COORDS = {
+            'G-6':  [33.7294, 73.0811], 'G-7':  [33.7220, 73.0770],
+            'G-8':  [33.7130, 73.0570], 'G-9':  [33.7070, 73.0480],
+            'G-10': [33.6990, 73.0390], 'G-11': [33.6910, 73.0300],
+            'F-6':  [33.7310, 73.0660], 'F-7':  [33.7250, 73.0560],
+            'F-8':  [33.7150, 73.0430], 'F-10': [33.7000, 73.0240],
+            'F-11': [33.6930, 73.0140],
+            'I-8':  [33.6840, 73.0710], 'I-9':  [33.6780, 73.0560],
+            'I-10': [33.6710, 73.0420],
+            'E-11': [33.7160, 73.0080],
+            'Blue Area': [33.7230, 73.0885],
+            'Faizabad':  [33.6960, 73.0630],
+            'Kashmir Highway': [33.6900, 73.0440],
+            'Margalla Road':   [33.7400, 73.0650],
+            'IJP Road':        [33.6800, 73.0750],
+            'Bahria Town':     [33.5190, 73.0940],
+        };
+
+        const leafletMap = L.map('leaflet-map', {
+            center: [33.7100, 73.0550],
+            zoom: 12,
+            zoomControl: false,
+            attributionControl: false
+        });
+
+        // Dark themed tiles (free, no API key)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 18,
+            subdomains: 'abcd'
+        }).addTo(leafletMap);
+
+        // Add zoom control to bottom-right
+        L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
+
+        // Place zone markers on the map
+        const zoneMarkers = {};
+        const zoneLayers = {};
+
+        Object.entries(ZONE_COORDS).forEach(([name, coords]) => {
+            // Small label marker
+            const marker = L.marker(coords, {
+                icon: L.divIcon({
+                    className: 'zone-label-icon',
+                    html: `<div style="
+                        background:rgba(30,41,59,0.85);
+                        border:1px solid rgba(255,255,255,0.2);
+                        border-radius:6px;
+                        padding:2px 8px;
+                        font-family:'Outfit',sans-serif;
+                        font-size:11px;
+                        font-weight:600;
+                        color:#cbd5e1;
+                        white-space:nowrap;
+                        text-align:center;
+                        pointer-events:auto;
+                        cursor:pointer;
+                    ">${name}</div>`,
+                    iconSize: [80, 24],
+                    iconAnchor: [40, 12]
+                })
+            }).addTo(leafletMap);
+
+            marker.on('click', () => highlightZone(name));
+            zoneMarkers[name] = marker;
+
+            // Transparent circle (will be colored when crisis hits)
+            const circle = L.circle(coords, {
+                radius: 500,
+                color: 'transparent',
+                fillColor: 'transparent',
+                fillOpacity: 0,
+                weight: 0
+            }).addTo(leafletMap);
+            zoneLayers[name] = circle;
+        });
+
         function pulseMapZone(zone, severity) {
-            const el = document.getElementById(`zone-${zone}`);
-            if(!el) return;
-            const originalColor = el.style.fill;
-            let pulseColor = 'rgba(234, 179, 8, 0.4)';
-            if(severity >= 4) pulseColor = 'rgba(239, 68, 68, 0.5)';
-            
-            el.style.fill = pulseColor;
+            let pulseColor = '#eab308';
+            if(severity >= 4) pulseColor = '#ef4444';
+            else if(severity >= 2) pulseColor = '#f97316';
+
+            const coords = ZONE_COORDS[zone];
+            if (!coords) return;
+
+            // Create a temporary pulsing circle
+            const pulse = L.circle(coords, {
+                radius: 800,
+                color: pulseColor,
+                fillColor: pulseColor,
+                fillOpacity: 0.4,
+                weight: 2,
+                className: 'pulse-ring'
+            }).addTo(leafletMap);
+
             setTimeout(() => {
+                leafletMap.removeLayer(pulse);
                 if(zoneDataMap[zone]) {
                     updateMapColor(zone, zoneDataMap[zone].severity);
-                } else {
-                    el.style.fill = 'var(--map-inactive)';
                 }
-            }, 1000);
+            }, 1500);
         }
 
-        // Map Interaction
         function highlightZone(zoneId) {
-            document.querySelectorAll('.map-zone').forEach(el => {
-                el.style.stroke = 'rgba(255,255,255,0.15)';
-                el.style.strokeWidth = '2.5';
-            });
-            
-            const active = document.getElementById(`zone-${zoneId}`);
-            if(active) {
-                active.style.stroke = '#fff';
-                active.style.strokeWidth = '3.5';
+            const coords = ZONE_COORDS[zoneId];
+            if (coords) {
+                leafletMap.flyTo(coords, 14, { duration: 0.8 });
             }
 
             const info = document.getElementById('zone-info-panel');
@@ -803,18 +923,25 @@
         }
 
         function updateMapColor(zone, severity) {
-            const el = document.getElementById(`zone-${zone}`);
-            if(!el) return;
-            
-            let color = 'var(--map-inactive)';
-            let glow = 'none';
-            
-            if(severity >= 4) { color = 'rgba(239, 68, 68, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(239,68,68,0.6))'; }
-            else if(severity >= 2) { color = 'rgba(249, 115, 22, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(249,115,22,0.6))'; }
-            else if(severity == 1) { color = 'rgba(234, 179, 8, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(234,179,8,0.6))'; }
-            
-            el.style.fill = color;
-            el.style.filter = glow;
+            const circle = zoneLayers[zone];
+            if (!circle) {
+                // Dynamic zone — not in predefined list, add it on the fly
+                const coords = ZONE_COORDS[zone];
+                if (!coords) return;
+            }
+
+            let color = 'transparent';
+            let opacity = 0;
+            let radius = 500;
+
+            if(severity >= 4) { color = '#ef4444'; opacity = 0.35; radius = 900; }
+            else if(severity >= 2) { color = '#f97316'; opacity = 0.3; radius = 700; }
+            else if(severity >= 1) { color = '#eab308'; opacity = 0.25; radius = 600; }
+
+            if (circle) {
+                circle.setStyle({ color: color, fillColor: color, fillOpacity: opacity, weight: severity >= 4 ? 2 : 1 });
+                circle.setRadius(radius);
+            }
         }
 
         // Phase 2 + Phase 3: AI Analysis Integration
@@ -838,7 +965,13 @@
             animatePipelineStep(0); // Sensor active
 
             try {
-                const signalPayload = { signals: [{ text: text, location: location, crisis_type: type, severity: 3, source: "dashboard" }] };
+                // Fix #1: No hardcoded severity — let the Sensor Agent infer it from the text
+                // Fix #4: Send 3 synthetic multi-source signals for richer analysis
+                const signalPayload = { signals: [
+                    { text: text, location: location, crisis_type: type, source: "dashboard" },
+                    { text: `${type} situation reported near ${location} — multiple citizens confirming`, location: location, crisis_type: type, source: "social_media" },
+                    { text: `Automated sensors detecting abnormal ${type.toLowerCase().includes('flood') ? 'water level' : type.toLowerCase().includes('fire') ? 'heat signature' : type.toLowerCase().includes('power') ? 'grid fluctuation' : type.toLowerCase().includes('accident') ? 'traffic anomaly' : 'congestion'} readings in ${location}`, location: location, crisis_type: type, source: "sensor" }
+                ]};
 
                 // 1. Ingest
                 await fetch(`${API_BASE}/api/ingest`, {

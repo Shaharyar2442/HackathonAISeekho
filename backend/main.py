@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 
 import asyncio
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -167,8 +167,12 @@ async def detect_crisis(request: DetectRequest):
     The agent_trace contains 4 AgentMessage entries (one per agent),
     each with reasoning_steps showing the agent's thought process.
     """
-    pipeline = CIROPipeline()
-    result = await pipeline.execute(request.signals)
+    try:
+        pipeline = CIROPipeline()
+        result = await pipeline.execute(request.signals)
+    except Exception as e:
+        print(f"ERROR in pipeline: {e}")
+        raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
 
     # Phase 2: Save agent_trace to Firestore here
     try:
@@ -201,37 +205,42 @@ async def get_actions(request: ActionsRequest):
     
     Dynamically calls the Coordinator Agent to generate actions based on the crisis.
     """
-    pipeline = CIROPipeline()
-    crisis = DetectedCrisis(
-        type=request.crisis_type,
-        location=request.location,
-        severity=request.severity,
-        confidence=0.95,
-        reasoning="Generated from user request"
-    )
-    actions = await pipeline.run_coordinator_agent(crisis)
-    return {"actions": [a.model_dump() for a in actions], "crisis_location": request.location}
+    try:
+        pipeline = CIROPipeline()
+        crisis = DetectedCrisis(
+            type=request.crisis_type,
+            location=request.location,
+            severity=request.severity,
+            confidence=0.95,
+            reasoning="Generated from user request"
+        )
+        actions = await pipeline.run_coordinator_agent(crisis)
+        return {"actions": [a.model_dump() for a in actions], "crisis_location": request.location}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Actions error: {str(e)}")
 
 
 @app.post("/api/simulate")
 async def simulate_action(request: SimulateRequest):
     """Simulate execution of a response action using the Simulator Agent and Gemini Tools."""
-    pipeline = CIROPipeline()
-    action = ResponseAction(
-        id=request.action_id,
-        type=request.action_type,
-        description="Simulate this action based on context.",
-        priority=1,
-        estimated_impact="Pending AI simulation"
-    )
-    results = await pipeline.run_simulator_agent([action])
-    
-    if results:
-        return {
-            "simulation_result": results[0].model_dump(),
-            "agent_trace": [msg.model_dump() for msg in pipeline.agent_trace]
-        }
-    return {"simulation_result": {"error": "Simulation failed"}, "agent_trace": []}
+    try:
+        pipeline = CIROPipeline()
+        action = ResponseAction(
+            id=request.action_id,
+            type=request.action_type,
+            description="Simulate this action based on context.",
+            priority=1,
+            estimated_impact="Pending AI simulation"
+        )
+        results = await pipeline.run_simulator_agent([action])
+        if results:
+            return {
+                "simulation_result": results[0].model_dump(),
+                "agent_trace": [msg.model_dump() for msg in pipeline.agent_trace]
+            }
+        return {"simulation_result": {"error": "Simulation failed"}, "agent_trace": []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Simulation error: {str(e)}")
 
 
 # (Duplicate /api/health route removed — see line 130 for the canonical definition)
