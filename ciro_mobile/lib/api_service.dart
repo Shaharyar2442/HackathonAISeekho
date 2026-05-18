@@ -5,6 +5,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class ApiService {
   static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
+  static final List<Map<String, dynamic>> locallyReportedSignals = [];
+
   static Future<Map<String, dynamic>> submitAndAnalyze(String text, String location, String type, {double? lat, double? lng}) async {
     // Map dropdown UI values to backend expected keys
     String backendType = type.toLowerCase();
@@ -20,6 +22,8 @@ class ApiService {
     
     if (lat != null) signalData['lat'] = lat;
     if (lng != null) signalData['lng'] = lng;
+
+    locallyReportedSignals.insert(0, signalData);
 
     // 1. Ingest Signal
     final ingestRes = await http.post(

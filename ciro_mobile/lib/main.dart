@@ -635,7 +635,6 @@ class _MapScreenState extends State<MapScreen> {
   void _connectWebSocket() {
     if (_wsConnected || !mounted) return;
     try {
-      // Read from env; auto-convert http(s):// → ws(s):// if misconfigured
       String wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
       wsUrl = wsUrl
           .replaceFirst('https://', 'wss://')
@@ -643,24 +642,73 @@ class _MapScreenState extends State<MapScreen> {
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _wsConnected = true;
-      _channel!.stream.listen((message) {
+      _channel!.stream.listen((message) async {
         if (!mounted) return;
-        final data = jsonDecode(message);
-        if (data is Map<String, dynamic>) {
+        final rawData = jsonDecode(message);
+        if (rawData is Map<String, dynamic> && rawData['type'] == 'new_crisis') {
+          final crisis = rawData['crisis'] ?? {};
+          final signal = rawData['signal'] ?? {};
+          final actions = rawData['actions'] ?? [];
+          final agentTrace = rawData['agent_trace'] ?? [];
+
+          final Map<String, dynamic> data = {
+            'crisis_type': crisis['type'] ?? 'Alert',
+            'severity': crisis['severity'] ?? 1,
+            'location': crisis['location'] ?? 'Unknown',
+            'text': signal['text'] ?? crisis['reasoning'] ?? 'Crisis reported',
+            'lat': signal['lat'],
+            'lng': signal['lng'],
+            'full_crisis': crisis,
+            'actions': actions,
+            'agentTrace': agentTrace,
+          };
+
           _signalCounter++;
           final currentNumber = _signalCounter;
           data['number'] = currentNumber;
           final signalId = data['text'] ?? currentNumber.toString();
           
-          final locName = data['location'] as String?;
-          final baseLatLng = _zoneCoordinates[locName];
-          if (baseLatLng != null) {
-            final random = math.Random();
-            // Disperse by roughly ~300 meters randomly
-            data['computed_latlng'] = LatLng(
-              baseLatLng.latitude + (random.nextDouble() - 0.5) * 0.005,
-              baseLatLng.longitude + (random.nextDouble() - 0.5) * 0.005,
-            );
+          LatLng? computedLatLng;
+          if (data['lat'] != null && data['lng'] != null) {
+            computedLatLng = LatLng((data['lat'] as num).toDouble(), (data['lng'] as num).toDouble());
+            data['computed_latlng'] = computedLatLng;
+          } else {
+            final locName = data['location'] as String?;
+            final baseLatLng = _zoneCoordinates[locName];
+            if (baseLatLng != null) {
+              computedLatLng = baseLatLng;
+              data['computed_latlng'] = computedLatLng;
+            }
+          }
+          
+          // Trigger notification if nearby (e.g. within 10km)
+          if (computedLatLng != null && _locationGranted) {
+            try {
+              final pos = await Geolocator.getLastKnownPosition();
+              if (pos != null) {
+                final dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, computedLatLng.latitude, computedLatLng.longitude);
+                if (dist < 10000) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('⚠️ Alert nearby: ${data['crisis_type']}!'),
+                      backgroundColor: Colors.red.shade800,
+                      action: SnackBarAction(
+                        label: 'VIEW ACTIONS',
+                        textColor: Colors.white,
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/response', arguments: {
+                            'detectedCrisis': data['full_crisis'],
+                            'actions': data['actions'],
+                            'agentTrace': data['agentTrace'],
+                          });
+                        },
+                      ),
+                      duration: const Duration(seconds: 10),
+                    ),
+                  );
+                }
+              }
+            } catch (_) {}
           }
           
           _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
@@ -705,8 +753,16 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Set<Marker> _buildMarkers() {
-    return _liveSignals.map((signal) {
-      final latLng = signal['computed_latlng'] as LatLng? ?? _zoneCoordinates[signal['location']];
+    final allSignals = [...ApiService.locallyReportedSignals, ..._liveSignals];
+    return allSignals.map((signal) {
+      LatLng? latLng = signal['computed_latlng'];
+      if (latLng == null) {
+        if (signal['lat'] != null && signal['lng'] != null) {
+          latLng = LatLng((signal['lat'] as num).toDouble(), (signal['lng'] as num).toDouble());
+        } else {
+          latLng = _zoneCoordinates[signal['location']];
+        }
+      }
       if (latLng == null) return null;
       
       return Marker(
@@ -714,9 +770,20 @@ class _MapScreenState extends State<MapScreen> {
         position: latLng,
         infoWindow: InfoWindow(
           title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
-          snippet: signal['text'] ?? '',
+          snippet: 'Tap to view simulation & actions',
+          onTap: () {
+            if (signal['full_crisis'] != null) {
+              Navigator.pushNamed(context, '/response', arguments: {
+                'detectedCrisis': signal['full_crisis'],
+                'actions': signal['actions'] ?? [],
+                'agentTrace': signal['agentTrace'] ?? [],
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Locally reported signal pending backend validation.')));
+            }
+          },
         ),
-        icon: _markerIcons[signal['text'] ?? signal['number'].toString()] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+        icon: _markerIcons[signal['text'] ?? signal['number']?.toString() ?? 'local'] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
       );
     }).whereType<Marker>().toSet();
   }
@@ -739,7 +806,7 @@ class _MapScreenState extends State<MapScreen> {
                 markers: _buildMarkers(),
               ),
             ),
-            if (_liveSignals.isNotEmpty)
+            if (_liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
               Positioned(
                 top: 16,
                 left: 16,
@@ -772,7 +839,7 @@ class _MapScreenState extends State<MapScreen> {
                             controller: _feedScrollController,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: _liveSignals.map((s) => Padding(
+                              children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) => Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -942,6 +1009,8 @@ class ResponseScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: _buildActionCard(
                       context: context,
+                      actionId: action['id'] ?? 'act_unknown',
+                      actionType: action['type'] ?? 'Unknown Action',
                       title: action['description'] ?? action['type'] ?? 'Unknown Action',
                       priorityText: 'P$p',
                       priorityColor: p == 1 ? Colors.red : (p == 2 ? Colors.orange : Colors.green),
@@ -1053,6 +1122,8 @@ class ResponseScreen extends StatelessWidget {
 
   Widget _buildActionCard({
     required BuildContext context,
+    required String actionId,
+    required String actionType,
     required String title,
     required String priorityText,
     required MaterialColor priorityColor,
@@ -1096,7 +1167,12 @@ class ResponseScreen extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: FilledButton.tonal(
               onPressed: () {
-                Navigator.pushNamed(context, '/simulate', arguments: {'title': title, 'priorityText': priorityText});
+                Navigator.pushNamed(context, '/simulate', arguments: {
+                  'id': actionId,
+                  'type': actionType,
+                  'title': title, 
+                  'priorityText': priorityText
+                });
               },
               child: const Text('Simulate Action'),
             ),
@@ -1118,6 +1194,7 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
   int _currentStep = 0;
   bool _isComplete = false;
   final List<String> _logs = [];
+  List<String> _execLogs = [];
   Map<String, dynamic>? _result;
   late StreamSubscription _subscription;
 
@@ -1130,37 +1207,54 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
       _initialized = true;
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final String actionTitle = args?['title'] ?? 'Unknown Action';
-      _startSimulation(actionTitle);
+      final String actionId = args?['id'] ?? 'act_123';
+      final String actionType = args?['type'] ?? 'Unknown Action';
+      _startSimulation(actionTitle, actionId, actionType);
     }
   }
 
-  void _startSimulation(String actionTitle) async {
+  void _startSimulation(String actionTitle, String actionId, String actionType) async {
     try {
       setState(() {
         _logs.add('[Simulator] Connecting to Backend Simulator...');
       });
       // 1. Call the real FastAPI simulation endpoint
-      final data = await ApiService.simulateAction(actionTitle, 'act_123');
+      final data = await ApiService.simulateAction(actionType, actionId);
       final result = data['simulation_result'];
+      final agentTrace = data['agent_trace'] as List<dynamic>? ?? [];
+      
       final execLogs = List<String>.from(result['execution_log'] ?? []);
+      setState(() {
+        _execLogs = execLogs;
+      });
+
+      // Add reasoning steps to logs if available
+      final List<String> reasoningSteps = [];
+      if (agentTrace.isNotEmpty) {
+        final trace = agentTrace.first;
+        reasoningSteps.addAll(List<String>.from(trace['reasoning_steps'] ?? []));
+      }
 
       // 2. Animate the logs into the UI
-      final eventStream = Stream.periodic(const Duration(seconds: 1), (i) {
-        if (i < execLogs.length) {
-          int step = i < (execLogs.length / 2) ? 1 : 2;
-          return {'step': step, 'log': execLogs[i]};
-        } else if (i == execLogs.length) {
+      final eventStream = Stream.periodic(const Duration(milliseconds: 800), (i) {
+        if (i < reasoningSteps.length) {
+          return {'log': '[Agent] ${reasoningSteps[i]}', 'step': _currentStep};
+        }
+        
+        final execIndex = i - reasoningSteps.length;
+        if (execIndex < execLogs.length) {
+          return {'log': '[Execution] ${execLogs[execIndex]}', 'step': execIndex};
+        } else if (execIndex == execLogs.length) {
           return {
-            'step': 3,
+            'step': execLogs.length,
             'log': '[Simulator] Simulation completed successfully.',
             'result': {
-              'success_rate': 0.88, // static for effect
               'after_state': result['after_state'],
             }
           };
         }
         return null;
-      }).take(execLogs.length + 1);
+      }).take(reasoningSteps.length + execLogs.length + 1);
 
       _subscription = eventStream.listen((event) {
         if (event == null || !mounted) return;
@@ -1184,7 +1278,9 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
 
   @override
   void dispose() {
-    _subscription.cancel();
+    if (_initialized) {
+      _subscription.cancel();
+    }
     super.dispose();
   }
 
@@ -1219,48 +1315,34 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
             ),
           ),
           Expanded(
-            child: Stepper(
-              currentStep: _currentStep,
-              controlsBuilder: (context, details) => const SizedBox.shrink(),
-              steps: [
-                Step(
-                  title: const Text('Initialization'),
-                  content: const Text('Connecting to Simulator Agent...'),
-                  state: _currentStep > 0 ? StepState.complete : StepState.editing,
-                  isActive: _currentStep >= 0,
+            child: _execLogs.isEmpty 
+              ? const Center(child: CircularProgressIndicator())
+              : Stepper(
+                  currentStep: _currentStep < _execLogs.length ? _currentStep : _execLogs.length,
+                  controlsBuilder: (context, details) => const SizedBox.shrink(),
+                  steps: List.generate(_execLogs.length + 1, (index) {
+                    if (index == _execLogs.length) {
+                      return Step(
+                        title: const Text('Evaluation Complete'),
+                        content: _isComplete 
+                          ? Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                              child: Text('After state: ${_result?['after_state']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                            )
+                          : const Text('Calculating final metrics...'),
+                        state: _isComplete ? StepState.complete : (_currentStep == index ? StepState.editing : StepState.indexed),
+                        isActive: _currentStep >= index,
+                      );
+                    }
+                    return Step(
+                      title: Text('Step ${index + 1}'),
+                      content: Text(_execLogs[index]),
+                      state: _currentStep > index ? StepState.complete : (_currentStep == index ? StepState.editing : StepState.indexed),
+                      isActive: _currentStep >= index,
+                    );
+                  }),
                 ),
-                Step(
-                  title: const Text('State Capture'),
-                  content: const Text('Capturing before-state environment...'),
-                  state: _currentStep > 1 ? StepState.complete : (_currentStep == 1 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 1,
-                ),
-                Step(
-                  title: const Text('Execution'),
-                  content: const Text('Applying action logic and running ticks...'),
-                  state: _currentStep > 2 ? StepState.complete : (_currentStep == 2 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 2,
-                ),
-                Step(
-                  title: const Text('Evaluation'),
-                  content: _isComplete 
-                    ? Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle, color: Colors.green),
-                            const SizedBox(width: 8),
-                            Text('Success Rate: ${((_result?['success_rate'] ?? 0) * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                          ],
-                        ),
-                      )
-                    : const Text('Calculating final metrics...'),
-                  state: _isComplete ? StepState.complete : (_currentStep == 3 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 3,
-                ),
-              ],
-            ),
           ),
           Container(
             height: 200,
