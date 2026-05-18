@@ -652,15 +652,17 @@ class _MapScreenState extends State<MapScreen> {
           data['number'] = currentNumber;
           final signalId = data['text'] ?? currentNumber.toString();
           
-          final locName = data['location'] as String?;
-          final baseLatLng = _zoneCoordinates[locName];
-          if (baseLatLng != null) {
-            final random = math.Random();
-            // Disperse by roughly ~300 meters randomly
+          if (data['lat'] != null && data['lng'] != null) {
             data['computed_latlng'] = LatLng(
-              baseLatLng.latitude + (random.nextDouble() - 0.5) * 0.005,
-              baseLatLng.longitude + (random.nextDouble() - 0.5) * 0.005,
+              (data['lat'] as num).toDouble(),
+              (data['lng'] as num).toDouble(),
             );
+          } else {
+            final locName = data['location'] as String?;
+            final baseLatLng = _zoneCoordinates[locName];
+            if (baseLatLng != null) {
+              data['computed_latlng'] = baseLatLng;
+            }
           }
           
           _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
@@ -705,8 +707,16 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Set<Marker> _buildMarkers() {
-    return _liveSignals.map((signal) {
-      final latLng = signal['computed_latlng'] as LatLng? ?? _zoneCoordinates[signal['location']];
+    final allSignals = [...ApiService.locallyReportedSignals, ..._liveSignals];
+    return allSignals.map((signal) {
+      LatLng? latLng = signal['computed_latlng'];
+      if (latLng == null) {
+        if (signal['lat'] != null && signal['lng'] != null) {
+          latLng = LatLng((signal['lat'] as num).toDouble(), (signal['lng'] as num).toDouble());
+        } else {
+          latLng = _zoneCoordinates[signal['location']];
+        }
+      }
       if (latLng == null) return null;
       
       return Marker(
@@ -716,7 +726,7 @@ class _MapScreenState extends State<MapScreen> {
           title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
           snippet: signal['text'] ?? '',
         ),
-        icon: _markerIcons[signal['text'] ?? signal['number'].toString()] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+        icon: _markerIcons[signal['text'] ?? signal['number']?.toString() ?? 'local'] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
       );
     }).whereType<Marker>().toSet();
   }
@@ -739,7 +749,7 @@ class _MapScreenState extends State<MapScreen> {
                 markers: _buildMarkers(),
               ),
             ),
-            if (_liveSignals.isNotEmpty)
+            if (_liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
               Positioned(
                 top: 16,
                 left: 16,
@@ -772,7 +782,7 @@ class _MapScreenState extends State<MapScreen> {
                             controller: _feedScrollController,
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: _liveSignals.map((s) => Padding(
+                              children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) => Padding(
                               padding: const EdgeInsets.only(bottom: 8.0),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1127,6 +1137,7 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
   int _currentStep = 0;
   bool _isComplete = false;
   final List<String> _logs = [];
+  List<String> _execLogs = [];
   Map<String, dynamic>? _result;
   late StreamSubscription _subscription;
 
@@ -1153,25 +1164,40 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
       // 1. Call the real FastAPI simulation endpoint
       final data = await ApiService.simulateAction(actionType, actionId);
       final result = data['simulation_result'];
+      final agentTrace = data['agent_trace'] as List<dynamic>? ?? [];
+      
       final execLogs = List<String>.from(result['execution_log'] ?? []);
+      setState(() {
+        _execLogs = execLogs;
+      });
+
+      // Add reasoning steps to logs if available
+      final List<String> reasoningSteps = [];
+      if (agentTrace.isNotEmpty) {
+        final trace = agentTrace.first;
+        reasoningSteps.addAll(List<String>.from(trace['reasoning_steps'] ?? []));
+      }
 
       // 2. Animate the logs into the UI
-      final eventStream = Stream.periodic(const Duration(seconds: 1), (i) {
-        if (i < execLogs.length) {
-          int step = i < (execLogs.length / 2) ? 1 : 2;
-          return {'step': step, 'log': execLogs[i]};
-        } else if (i == execLogs.length) {
+      final eventStream = Stream.periodic(const Duration(milliseconds: 800), (i) {
+        if (i < reasoningSteps.length) {
+          return {'log': '[Agent] ${reasoningSteps[i]}', 'step': _currentStep};
+        }
+        
+        final execIndex = i - reasoningSteps.length;
+        if (execIndex < execLogs.length) {
+          return {'log': '[Execution] ${execLogs[execIndex]}', 'step': execIndex};
+        } else if (execIndex == execLogs.length) {
           return {
-            'step': 3,
+            'step': execLogs.length,
             'log': '[Simulator] Simulation completed successfully.',
             'result': {
-              'success_rate': 0.88, // static for effect
               'after_state': result['after_state'],
             }
           };
         }
         return null;
-      }).take(execLogs.length + 1);
+      }).take(reasoningSteps.length + execLogs.length + 1);
 
       _subscription = eventStream.listen((event) {
         if (event == null || !mounted) return;
@@ -1195,7 +1221,9 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
 
   @override
   void dispose() {
-    _subscription.cancel();
+    if (_initialized) {
+      _subscription.cancel();
+    }
     super.dispose();
   }
 
@@ -1230,48 +1258,34 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
             ),
           ),
           Expanded(
-            child: Stepper(
-              currentStep: _currentStep,
-              controlsBuilder: (context, details) => const SizedBox.shrink(),
-              steps: [
-                Step(
-                  title: const Text('Initialization'),
-                  content: const Text('Connecting to Simulator Agent...'),
-                  state: _currentStep > 0 ? StepState.complete : StepState.editing,
-                  isActive: _currentStep >= 0,
+            child: _execLogs.isEmpty 
+              ? const Center(child: CircularProgressIndicator())
+              : Stepper(
+                  currentStep: _currentStep < _execLogs.length ? _currentStep : _execLogs.length,
+                  controlsBuilder: (context, details) => const SizedBox.shrink(),
+                  steps: List.generate(_execLogs.length + 1, (index) {
+                    if (index == _execLogs.length) {
+                      return Step(
+                        title: const Text('Evaluation Complete'),
+                        content: _isComplete 
+                          ? Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                              child: Text('After state: ${_result?['after_state']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
+                            )
+                          : const Text('Calculating final metrics...'),
+                        state: _isComplete ? StepState.complete : (_currentStep == index ? StepState.editing : StepState.indexed),
+                        isActive: _currentStep >= index,
+                      );
+                    }
+                    return Step(
+                      title: Text('Step ${index + 1}'),
+                      content: Text(_execLogs[index]),
+                      state: _currentStep > index ? StepState.complete : (_currentStep == index ? StepState.editing : StepState.indexed),
+                      isActive: _currentStep >= index,
+                    );
+                  }),
                 ),
-                Step(
-                  title: const Text('State Capture'),
-                  content: const Text('Capturing before-state environment...'),
-                  state: _currentStep > 1 ? StepState.complete : (_currentStep == 1 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 1,
-                ),
-                Step(
-                  title: const Text('Execution'),
-                  content: const Text('Applying action logic and running ticks...'),
-                  state: _currentStep > 2 ? StepState.complete : (_currentStep == 2 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 2,
-                ),
-                Step(
-                  title: const Text('Evaluation'),
-                  content: _isComplete 
-                    ? Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.check_circle, color: Colors.green),
-                            const SizedBox(width: 8),
-                            Text('Success Rate: ${((_result?['success_rate'] ?? 0) * 100).toInt()}%', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
-                          ],
-                        ),
-                      )
-                    : const Text('Calculating final metrics...'),
-                  state: _isComplete ? StepState.complete : (_currentStep == 3 ? StepState.editing : StepState.indexed),
-                  isActive: _currentStep >= 3,
-                ),
-              ],
-            ),
           ),
           Container(
             height: 200,
