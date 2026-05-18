@@ -1,0 +1,11 @@
+.git/
+.gitignore
+.dockerignore
+ciro_mobile/
+__pycache__/
+*.pyc
+.env
+dashboard.html
+*.md
+*.docx
+*.pdf
