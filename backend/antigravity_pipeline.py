@@ -23,6 +23,8 @@ from shared.models import (
 from config import get_settings
 from google import genai
 from google.genai import types
+from tenacity import retry, stop_after_attempt, wait_exponential
+from action_simulator import calculate_simulation_metrics
 
 # ------------------------------------------------------------------ #
 # Wrapper Models for Gemini Structured Outputs
@@ -77,14 +79,23 @@ class CIROPipeline:
             "agent_trace": [msg.model_dump() for msg in self.agent_trace],
         }
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def run_sensor_agent(self, raw_signals: list[dict]) -> list[CrisisSignal]:
         prompt = f"Raw Signals: {json.dumps(raw_signals)}\n\nNormalise these crisis signals into a structured JSON list of CrisisSignal objects."
+        
+        sys_instruct = (
+            "You are a Sensor Agent in Islamabad, Pakistan. "
+            "Your task is to normalise noisy, informal crisis signals (including Roman Urdu like 'pani bhar gaya hai', 'rasta band hai') "
+            "into structured JSON objects. Recognize local sectors (e.g., G-10, F-8, Blue Area). "
+            "You MUST use explicit Chain-of-Thought reasoning. Break down your logic step-by-step in the reasoning_steps array "
+            "BEFORE generating the final output list. Explain how you inferred the severity and translated the text."
+        )
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are a Sensor Agent. Normalise crisis signals into structured JSON list of CrisisSignal objects. Extract location, crisis_type, severity, and source. Generate reasoning_steps to explain your extraction.",
+                system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=SensorAgentOutput,
                 temperature=0.2,
@@ -103,15 +114,23 @@ class CIROPipeline:
         )
         return output.signals
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def run_analyst_agent(self, signals: list[CrisisSignal]) -> DetectedCrisis:
         signals_json = [s.model_dump() for s in signals]
         prompt = f"Normalised Signals: {json.dumps(signals_json)}\n\nAnalyse these CrisisSignal objects and produce a DetectedCrisis assessment."
+        
+        sys_instruct = (
+            "You are an Analyst Agent operating in Islamabad. Analyse the provided CrisisSignal objects. "
+            "You MUST use explicit Chain-of-Thought reasoning. In your reasoning_steps, explicitly mention: "
+            "1. Correlating signals to find clusters. 2. Translating any local context. 3. Estimating severity based on NDMA guidelines. "
+            "Only after documenting your logic, return the final DetectedCrisis JSON with confidence score and summary."
+        )
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are an Analyst Agent. Analyse CrisisSignal objects. Return JSON DetectedCrisis with type, location, severity, confidence, reasoning, and reasoning_steps list explaining your analysis. Derive severity strictly from the user's raw text and crisis type using this scale: 1 = minor inconvenience reported calmly, 2 = noticeable disruption, 3 = significant incident affecting multiple people, 4 = serious emergency with immediate danger, 5 = catastrophic event requiring all available resources. You must justify your severity choice inside reasoning_steps.",
+                system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=AnalystAgentOutput,
                 temperature=0.2,
@@ -130,14 +149,22 @@ class CIROPipeline:
         )
         return output.crisis
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def run_coordinator_agent(self, crisis: DetectedCrisis) -> list[ResponseAction]:
         prompt = f"Detected Crisis: {json.dumps(crisis.model_dump())}\n\nGiven this crisis, return JSON array of ResponseAction objects prioritised P1/P2/P3 with realistic Islamabad-specific actions."
+        
+        sys_instruct = (
+            "You are a Coordinator Agent for Islamabad Emergency Response. "
+            "You MUST use explicit Chain-of-Thought reasoning. Document your thought process in reasoning_steps: "
+            "1. Evaluate resources needed for this specific sector. 2. Prioritize actions (P1/P2/P3). 3. Design realistic interventions. "
+            "Then, return the JSON array of ResponseAction objects."
+        )
         
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are a Coordinator Agent. Given crisis, return JSON array of ResponseAction objects prioritised P1/P2/P3. Generate reasoning_steps explaining your prioritization. When coordinates (lat/lng) are available in the signal data, generate actions tied to the exact GPS location (e.g. 'Dispatch nearest ambulance to coordinates 33.7225, 73.0805' or 'Establish a diversion at the 500m radius around the reported location'). When no coordinates are available, fall back to zone-level actions.",
+                system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=CoordinatorAgentOutput,
                 temperature=0.2,
@@ -156,28 +183,70 @@ class CIROPipeline:
         )
         return output.actions
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def run_simulator_agent(self, actions: list[ResponseAction]) -> list[SimulationResult]:
         actions_json = [a.model_dump() for a in actions]
-        prompt = f"Response Actions: {json.dumps(actions_json)}\n\nSimulate the execution of these actions and return SimulationResult objects."
         
-        response = self.client.models.generate_content(
+        sys_instruct = (
+            "You are a Simulator Agent. You MUST use the calculate_simulation_metrics tool to simulate the execution of EACH response action. "
+            "Call the tool for each action type. After executing the tools, analyse the results and return them in the SimulatorAgentOutput JSON schema. "
+            "Include your Chain-of-Thought in reasoning_steps explaining the tool execution results."
+        )
+
+        chat = self.client.chats.create(
             model=self.model_name,
-            contents=prompt,
             config=types.GenerateContentConfig(
-                system_instruction="You are a Simulator Agent. Simulate execution of response actions. Return SimulationResult objects with realistic before_state and after_state dicts. Generate reasoning_steps explaining your simulation.",
-                response_mime_type="application/json",
-                response_schema=SimulatorAgentOutput,
+                system_instruction=sys_instruct,
                 temperature=0.4,
+                tools=[calculate_simulation_metrics]
             )
         )
         
-        output: SimulatorAgentOutput = response.parsed
+        # Step 1: Ask the agent to use the tools
+        prompt = f"Response Actions: {json.dumps(actions_json)}\n\nPlease call the tool to simulate the execution of these actions."
+        response = chat.send_message(prompt)
+        
+        # Step 2: If the model called tools, execute them and send results back
+        if response.function_calls:
+            function_responses = []
+            for function_call in response.function_calls:
+                if function_call.name == "calculate_simulation_metrics":
+                    action_type = function_call.args.get("action_type", "")
+                    location = function_call.args.get("location", "")
+                    # Execute our actual Python function
+                    result_dict = calculate_simulation_metrics(action_type, location)
+                    
+                    function_responses.append(
+                        types.Part.from_function_response(
+                            name="calculate_simulation_metrics",
+                            response={"result": result_dict}
+                        )
+                    )
+            
+            # Send the tool output back to the model
+            response = chat.send_message(types.Content(parts=function_responses))
+            
+        # Step 3: Now ask the model to format its findings into the final structured JSON
+        final_response = chat.send_message(
+            "Great. Now, based on the simulation results you received, output the final JSON matching the SimulatorAgentOutput schema.",
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=SimulatorAgentOutput,
+            )
+        )
+        
+        output: SimulatorAgentOutput = final_response.parsed
+        
+        # We need to map the action IDs back properly, since the model might hallucinate them
+        if len(output.results) == len(actions):
+            for i, res in enumerate(output.results):
+                res.action_id = actions[i].id
         
         self.agent_trace.append(
             AgentMessage(
                 agent_name="Simulator Agent",
-                input_summary=f"Simulating {len(actions)} response actions",
-                output_summary=f"Completed {len(output.results)} simulations",
+                input_summary=f"Simulating {len(actions)} response actions via Tool Execution",
+                output_summary=f"Completed {len(output.results)} simulations using calculate_simulation_metrics tool",
                 reasoning_steps=output.reasoning_steps,
             )
         )
