@@ -942,6 +942,8 @@ class ResponseScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: _buildActionCard(
                       context: context,
+                      actionId: action['id'] ?? 'act_unknown',
+                      actionType: action['type'] ?? 'Unknown Action',
                       title: action['description'] ?? action['type'] ?? 'Unknown Action',
                       priorityText: 'P$p',
                       priorityColor: p == 1 ? Colors.red : (p == 2 ? Colors.orange : Colors.green),
@@ -1053,6 +1055,8 @@ class ResponseScreen extends StatelessWidget {
 
   Widget _buildActionCard({
     required BuildContext context,
+    required String actionId,
+    required String actionType,
     required String title,
     required String priorityText,
     required MaterialColor priorityColor,
@@ -1096,7 +1100,12 @@ class ResponseScreen extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: FilledButton.tonal(
               onPressed: () {
-                Navigator.pushNamed(context, '/simulate', arguments: {'title': title, 'priorityText': priorityText});
+                Navigator.pushNamed(context, '/simulate', arguments: {
+                  'id': actionId,
+                  'type': actionType,
+                  'title': title, 
+                  'priorityText': priorityText
+                });
               },
               child: const Text('Simulate Action'),
             ),
@@ -1130,17 +1139,19 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
       _initialized = true;
       final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
       final String actionTitle = args?['title'] ?? 'Unknown Action';
-      _startSimulation(actionTitle);
+      final String actionId = args?['id'] ?? 'act_123';
+      final String actionType = args?['type'] ?? 'Unknown Action';
+      _startSimulation(actionTitle, actionId, actionType);
     }
   }
 
-  void _startSimulation(String actionTitle) async {
+  void _startSimulation(String actionTitle, String actionId, String actionType) async {
     try {
       setState(() {
         _logs.add('[Simulator] Connecting to Backend Simulator...');
       });
       // 1. Call the real FastAPI simulation endpoint
-      final data = await ApiService.simulateAction(actionTitle, 'act_123');
+      final data = await ApiService.simulateAction(actionType, actionId);
       final result = data['simulation_result'];
       final execLogs = List<String>.from(result['execution_log'] ?? []);
 
