@@ -635,7 +635,6 @@ class _MapScreenState extends State<MapScreen> {
   void _connectWebSocket() {
     if (_wsConnected || !mounted) return;
     try {
-      // Read from env; auto-convert http(s):// → ws(s):// if misconfigured
       String wsUrl = dotenv.env['WS_BASE_URL'] ?? 'ws://10.188.25.60:8000/ws/signals';
       wsUrl = wsUrl
           .replaceFirst('https://', 'wss://')
@@ -643,26 +642,73 @@ class _MapScreenState extends State<MapScreen> {
 
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _wsConnected = true;
-      _channel!.stream.listen((message) {
+      _channel!.stream.listen((message) async {
         if (!mounted) return;
-        final data = jsonDecode(message);
-        if (data is Map<String, dynamic>) {
+        final rawData = jsonDecode(message);
+        if (rawData is Map<String, dynamic> && rawData['type'] == 'new_crisis') {
+          final crisis = rawData['crisis'] ?? {};
+          final signal = rawData['signal'] ?? {};
+          final actions = rawData['actions'] ?? [];
+          final agentTrace = rawData['agent_trace'] ?? [];
+
+          final Map<String, dynamic> data = {
+            'crisis_type': crisis['type'] ?? 'Alert',
+            'severity': crisis['severity'] ?? 1,
+            'location': crisis['location'] ?? 'Unknown',
+            'text': signal['text'] ?? crisis['reasoning'] ?? 'Crisis reported',
+            'lat': signal['lat'],
+            'lng': signal['lng'],
+            'full_crisis': crisis,
+            'actions': actions,
+            'agentTrace': agentTrace,
+          };
+
           _signalCounter++;
           final currentNumber = _signalCounter;
           data['number'] = currentNumber;
           final signalId = data['text'] ?? currentNumber.toString();
           
+          LatLng? computedLatLng;
           if (data['lat'] != null && data['lng'] != null) {
-            data['computed_latlng'] = LatLng(
-              (data['lat'] as num).toDouble(),
-              (data['lng'] as num).toDouble(),
-            );
+            computedLatLng = LatLng((data['lat'] as num).toDouble(), (data['lng'] as num).toDouble());
+            data['computed_latlng'] = computedLatLng;
           } else {
             final locName = data['location'] as String?;
             final baseLatLng = _zoneCoordinates[locName];
             if (baseLatLng != null) {
-              data['computed_latlng'] = baseLatLng;
+              computedLatLng = baseLatLng;
+              data['computed_latlng'] = computedLatLng;
             }
+          }
+          
+          // Trigger notification if nearby (e.g. within 10km)
+          if (computedLatLng != null && _locationGranted) {
+            try {
+              final pos = await Geolocator.getLastKnownPosition();
+              if (pos != null) {
+                final dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, computedLatLng.latitude, computedLatLng.longitude);
+                if (dist < 10000) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('⚠️ Alert nearby: ${data['crisis_type']}!'),
+                      backgroundColor: Colors.red.shade800,
+                      action: SnackBarAction(
+                        label: 'VIEW ACTIONS',
+                        textColor: Colors.white,
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/response', arguments: {
+                            'detectedCrisis': data['full_crisis'],
+                            'actions': data['actions'],
+                            'agentTrace': data['agentTrace'],
+                          });
+                        },
+                      ),
+                      duration: const Duration(seconds: 10),
+                    ),
+                  );
+                }
+              }
+            } catch (_) {}
           }
           
           _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
@@ -724,7 +770,18 @@ class _MapScreenState extends State<MapScreen> {
         position: latLng,
         infoWindow: InfoWindow(
           title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
-          snippet: signal['text'] ?? '',
+          snippet: 'Tap to view simulation & actions',
+          onTap: () {
+            if (signal['full_crisis'] != null) {
+              Navigator.pushNamed(context, '/response', arguments: {
+                'detectedCrisis': signal['full_crisis'],
+                'actions': signal['actions'] ?? [],
+                'agentTrace': signal['agentTrace'] ?? [],
+              });
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Locally reported signal pending backend validation.')));
+            }
+          },
         ),
         icon: _markerIcons[signal['text'] ?? signal['number']?.toString() ?? 'local'] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
       );
