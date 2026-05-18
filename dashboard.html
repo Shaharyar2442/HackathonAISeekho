@@ -17,6 +17,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CIRO | Crisis Intelligence & Response Orchestrator</title>
+    <!-- Leaflet.js – free, no API key, OpenStreetMap/CartoDB dark tiles -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -233,26 +236,51 @@
             border: 1px solid rgba(255, 255, 255, 0.05);
             box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
         }
-        svg.map { width: 100%; height: auto; max-height: 400px; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.4)); }
-        .map-zone { 
-            fill: var(--map-inactive); 
-            stroke: rgba(255,255,255,0.15); 
-            stroke-width: 2.5; 
-            cursor: pointer; 
-            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
-            rx: 8; ry: 8;
+        /* ── Leaflet map overrides ── */
+        #leaflet-map {
+            width: 100%; height: 320px;
+            border-radius: 12px; overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
         }
-        .map-zone:hover { stroke: #fff; stroke-width: 3.5; filter: brightness(1.3) drop-shadow(0 0 10px rgba(255,255,255,0.2)); }
-        .map-label { fill: #f1f5f9; font-size: 15px; font-weight: 700; pointer-events: none; text-anchor: middle; dominant-baseline: middle; letter-spacing: 1px; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }
+        /* Force Leaflet dark tiles text readable */
+        .leaflet-container { background: #0d1117; }
+        .leaflet-popup-content-wrapper {
+            background: rgba(15,20,30,0.97) !important;
+            color: #e2e8f0 !important;
+            border: 1px solid rgba(255,255,255,0.12) !important;
+            border-radius: 10px !important;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6) !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
+        .leaflet-popup-tip { background: rgba(15,20,30,0.97) !important; }
+        .leaflet-popup-close-button { color: #94a3b8 !important; }
+
+        /* Pulse ring animation for active incidents */
+        @keyframes pulse-ring {
+            0%   { transform: scale(1); opacity: 0.7; }
+            100% { transform: scale(2.8); opacity: 0; }
+        }
+
+        /* GPS location button */
+        .gps-btn {
+            background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.4);
+            color: #93c5fd; padding: 0 12px; height: 36px; border-radius: 8px;
+            cursor: pointer; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.5px; transition: all 0.2s; white-space: nowrap;
+            display: inline-flex; align-items: center; gap: 5px; margin-top: 18px;
+        }
+        .gps-btn:hover { background: rgba(59,130,246,0.3); border-color: #3b82f6; color: #fff; }
+        .gps-btn.locating { animation: pulse-ring 1s infinite; opacity: 0.7; }
 
         .zone-info { 
-            margin-top: 24px; 
-            padding: 14px 24px; 
+            margin-top: 14px; 
+            padding: 12px 18px; 
             background: rgba(255,255,255,0.03); 
             border-radius: 10px; 
             width: 100%; 
             text-align: center; 
-            font-size: 1rem; 
+            font-size: 0.9rem; 
             font-weight: 500;
             color: var(--text-main);
             border: 1px solid rgba(255,255,255,0.1);
@@ -518,13 +546,16 @@
             <div class="controls-row">
                 <div class="form-group" style="margin-bottom:0;">
                     <label>Target Zone</label>
-                    <select id="crisis-zone" class="form-control">
-                        <option value="G-10">Sector G-10</option>
-                        <option value="G-11">Sector G-11</option>
-                        <option value="F-8">Sector F-8</option>
-                        <option value="I-8">Sector I-8</option>
-                        <option value="Blue Area">Blue Area CBD</option>
-                    </select>
+                    <div style="display:flex;gap:8px;align-items:flex-end;">
+                        <select id="crisis-zone" class="form-control" style="flex:1;">
+                            <option value="G-10">Sector G-10</option>
+                            <option value="G-11">Sector G-11</option>
+                            <option value="F-8">Sector F-8</option>
+                            <option value="I-8">Sector I-8</option>
+                            <option value="Blue Area">Blue Area CBD</option>
+                        </select>
+                        <button class="gps-btn" id="gps-btn" onclick="useMyLocation()" title="Use your real GPS location">📍 My Location</button>
+                    </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label>Classification</label>
@@ -537,31 +568,17 @@
                     </select>
                 </div>
             </div>
-            
+
             <button class="btn" id="analyze-btn" onclick="analyzeCrisis()">
                 <div class="spinner" id="analyze-spinner"></div>
                 Initialize AI Analysis
             </button>
 
-            <div class="map-wrapper">
-                <svg class="map" viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
-                    <rect id="zone-F-8" class="map-zone" x="150" y="50" width="130" height="90" onclick="highlightZone('F-8')" />
-                    <text class="map-label" x="215" y="95">F-8</text>
-
-                    <rect id="zone-G-10" class="map-zone" x="40" y="160" width="120" height="110" onclick="highlightZone('G-10')" />
-                    <text class="map-label" x="100" y="215">G-10</text>
-
-                    <rect id="zone-G-11" class="map-zone" x="40" y="290" width="120" height="90" onclick="highlightZone('G-11')" />
-                    <text class="map-label" x="100" y="335">G-11</text>
-
-                    <rect id="zone-Blue Area" class="map-zone" x="300" y="110" width="170" height="70" onclick="highlightZone('Blue Area')" />
-                    <text class="map-label" x="385" y="145">BLUE AREA</text>
-
-                    <rect id="zone-I-8" class="map-zone" x="300" y="220" width="140" height="110" onclick="highlightZone('I-8')" />
-                    <text class="map-label" x="370" y="275">I-8</text>
-                </svg>
+            <!-- Live Leaflet Map -->
+            <div class="map-wrapper" style="padding:0;background:none;border:none;box-shadow:none;">
+                <div id="leaflet-map"></div>
                 <div class="zone-info" id="zone-info-panel">
-                    Awaiting live detection events.
+                    Awaiting live detection events. Click any zone on the map or use 📍 My Location.
                 </div>
             </div>
         </div>
@@ -764,37 +781,18 @@
         }
         
         function pulseMapZone(zone, severity) {
-            const el = document.getElementById(`zone-${zone}`);
-            if(!el) return;
-            const originalColor = el.style.fill;
-            let pulseColor = 'rgba(234, 179, 8, 0.4)';
-            if(severity >= 4) pulseColor = 'rgba(239, 68, 68, 0.5)';
-            
-            el.style.fill = pulseColor;
-            setTimeout(() => {
-                if(zoneDataMap[zone]) {
-                    updateMapColor(zone, zoneDataMap[zone].severity);
-                } else {
-                    el.style.fill = 'var(--map-inactive)';
-                }
-            }, 1000);
+            // Delegate to Leaflet updateMapColor for live map pulse
+            updateMapColor(zone, severity);
         }
 
         // Map Interaction
         function highlightZone(zoneId) {
-            document.querySelectorAll('.map-zone').forEach(el => {
-                el.style.stroke = 'rgba(255,255,255,0.15)';
-                el.style.strokeWidth = '2.5';
-            });
-            
-            const active = document.getElementById(`zone-${zoneId}`);
-            if(active) {
-                active.style.stroke = '#fff';
-                active.style.strokeWidth = '3.5';
+            // Fly Leaflet map to the zone
+            if (leafletMap && ZONE_COORDS[zoneId]) {
+                leafletMap.flyTo(ZONE_COORDS[zoneId], 14, { duration: 0.8 });
             }
-
             const info = document.getElementById('zone-info-panel');
-            if(zoneDataMap[zoneId]) {
+            if (zoneDataMap[zoneId]) {
                 const data = zoneDataMap[zoneId];
                 info.innerHTML = `<span style="color:var(--accent);font-weight:700;">${zoneId}</span> &mdash; ACTIVE: ${data.type} (Severity Level: ${data.severity})`;
             } else {
@@ -802,20 +800,218 @@
             }
         }
 
-        function updateMapColor(zone, severity) {
-            const el = document.getElementById(`zone-${zone}`);
-            if(!el) return;
-            
-            let color = 'var(--map-inactive)';
-            let glow = 'none';
-            
-            if(severity >= 4) { color = 'rgba(239, 68, 68, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(239,68,68,0.6))'; }
-            else if(severity >= 2) { color = 'rgba(249, 115, 22, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(249,115,22,0.6))'; }
-            else if(severity == 1) { color = 'rgba(234, 179, 8, 0.8)'; glow = 'drop-shadow(0 0 15px rgba(234,179,8,0.6))'; }
-            
-            el.style.fill = color;
-            el.style.filter = glow;
+        // ── LIVE MAP: zone definitions ──
+        const ZONE_COORDS = {
+            'G-10':      [33.6938, 73.0151],
+            'G-11':      [33.6975, 73.0033],
+            'F-8':       [33.7215, 73.0501],
+            'I-8':       [33.6715, 73.0679],
+            'Blue Area': [33.7294, 73.0931]
+        };
+        const ZONE_RADIUS = 650; // metres
+        let leafletMap = null;
+        let zoneCircles = {};   // zone name → { base: L.circle, pulse: L.circle }
+        let customPin = null;   // draggable user location pin
+        let customPinCoords = null;
+
+        const SEVERITY_STYLES = {
+            0: { color: '#334155', fillColor: '#1e293b', fillOpacity: 0.5, weight: 1.5 },
+            1: { color: '#eab308', fillColor: '#eab308', fillOpacity: 0.35, weight: 2 },
+            2: { color: '#eab308', fillColor: '#eab308', fillOpacity: 0.4,  weight: 2.5 },
+            3: { color: '#f97316', fillColor: '#f97316', fillOpacity: 0.45, weight: 3 },
+            4: { color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.55, weight: 3.5 },
+            5: { color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.65, weight: 4 }
+        };
+        const RESOLVED_STYLE = { color: '#22c55e', fillColor: '#22c55e', fillOpacity: 0.55, weight: 3 };
+
+        function initMap() {
+            leafletMap = L.map('leaflet-map', { zoomControl: true, attributionControl: false })
+                          .setView([33.7105, 73.0551], 12);
+
+            // Dark-styled OpenStreetMap tiles (free, no key)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19, subdomains: 'abcd'
+            }).addTo(leafletMap);
+
+            // Create a circle for each pre-defined zone
+            Object.entries(ZONE_COORDS).forEach(([name, latlng]) => {
+                const base = L.circle(latlng, {
+                    radius: ZONE_RADIUS,
+                    ...SEVERITY_STYLES[0],
+                    interactive: true
+                }).addTo(leafletMap);
+
+                base.bindTooltip(`<b>${name}</b>`, { permanent: true, direction: 'center', className: 'zone-tooltip' });
+                base.on('click', () => {
+                    highlightZone(name);
+                    document.getElementById('crisis-zone').value = name;
+                });
+
+                // Invisible pulse ring (shown during active crisis)
+                const pulse = L.circle(latlng, {
+                    radius: ZONE_RADIUS,
+                    color: 'transparent', fillColor: 'transparent',
+                    fillOpacity: 0, weight: 0, interactive: false
+                }).addTo(leafletMap);
+
+                zoneCircles[name] = { base, pulse };
+            });
+
+            // Click anywhere on map → drop a custom pin
+            leafletMap.on('click', function(e) {
+                placeCustomPin(e.latlng.lat, e.latlng.lng);
+            });
         }
+
+        function updateMapColor(zone, severity) {
+            // ── Also update Leaflet circle if zone exists on map ──
+            if (zoneCircles[zone]) {
+                const style = SEVERITY_STYLES[Math.min(severity, 5)] || SEVERITY_STYLES[0];
+                zoneCircles[zone].base.setStyle(style);
+
+                // Animate pulse ring for severity >= 3
+                const pulse = zoneCircles[zone].pulse;
+                if (severity >= 3) {
+                    pulse.setStyle({ color: style.color, fillColor: style.color, fillOpacity: 0.25, weight: 3 });
+                    // CSS pulse via repeating setRadius animation
+                    let growing = true;
+                    if (zoneCircles[zone]._pulseTimer) clearInterval(zoneCircles[zone]._pulseTimer);
+                    const speed = severity >= 5 ? 600 : severity >= 4 ? 900 : 1300;
+                    zoneCircles[zone]._pulseTimer = setInterval(() => {
+                        const cur = pulse.getRadius();
+                        if (growing) {
+                            pulse.setRadius(cur + 80);
+                            if (cur >= ZONE_RADIUS * 1.9) growing = false;
+                        } else {
+                            pulse.setRadius(cur - 80);
+                            if (cur <= ZONE_RADIUS) growing = true;
+                        }
+                    }, speed / 20);
+                } else {
+                    if (zoneCircles[zone]._pulseTimer) clearInterval(zoneCircles[zone]._pulseTimer);
+                    pulse.setStyle({ color: 'transparent', fillColor: 'transparent', fillOpacity: 0, weight: 0 });
+                    pulse.setRadius(ZONE_RADIUS);
+                }
+            }
+        }
+
+        function resolveZoneOnMap(zone) {
+            if (!zoneCircles[zone]) return;
+            // Stop pulse
+            if (zoneCircles[zone]._pulseTimer) clearInterval(zoneCircles[zone]._pulseTimer);
+            const { base, pulse } = zoneCircles[zone];
+            pulse.setStyle({ fillOpacity: 0, weight: 0 });
+            // Transition base to green
+            base.setStyle(RESOLVED_STYLE);
+            // Open resolved popup
+            const coords = ZONE_COORDS[zone] || leafletMap.getCenter();
+            L.popup({ closeButton: true, autoClose: true, closeOnEscapeKey: true })
+             .setLatLng(coords)
+             .setContent(`
+                <div style="padding:6px 4px;">
+                  <div style="font-size:1.1rem;font-weight:800;color:#4ade80;margin-bottom:4px;">✅ RESOLVED</div>
+                  <div style="font-size:0.82rem;color:#94a3b8;">Crisis at <b style="color:#e2e8f0">${zone}</b> cleared.</div>
+                  <div style="font-size:0.75rem;color:#64748b;margin-top:4px;">Response action executed successfully.</div>
+                </div>`)
+             .openOn(leafletMap);
+            setTimeout(() => leafletMap.closePopup(), 5000);
+        }
+
+        function resetAllMapMarkers() {
+            Object.entries(zoneCircles).forEach(([name, { base, pulse, _pulseTimer }]) => {
+                if (_pulseTimer) clearInterval(_pulseTimer);
+                base.setStyle(SEVERITY_STYLES[0]);
+                pulse.setStyle({ color: 'transparent', fillColor: 'transparent', fillOpacity: 0, weight: 0 });
+                pulse.setRadius(ZONE_RADIUS);
+            });
+            if (customPin) { leafletMap.removeLayer(customPin); customPin = null; customPinCoords = null; }
+            leafletMap.closePopup();
+        }
+
+        // ── GPS: My Location ──
+        async function useMyLocation() {
+            const btn = document.getElementById('gps-btn');
+            if (!navigator.geolocation) {
+                btn.textContent = '❌ Not supported';
+                setTimeout(() => { btn.textContent = '📍 My Location'; }, 2500);
+                return;
+            }
+            btn.textContent = '⏳ Locating...';
+            btn.disabled = true;
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    btn.textContent = '📍 My Location';
+                    btn.disabled = false;
+                    placeCustomPin(lat, lng, true);
+                },
+                (err) => {
+                    btn.textContent = '❌ Denied';
+                    btn.disabled = false;
+                    setTimeout(() => { btn.textContent = '📍 My Location'; }, 2500);
+                },
+                { timeout: 8000, enableHighAccuracy: true }
+            );
+        }
+
+        // ── Click-to-pin / GPS pin ──
+        async function placeCustomPin(lat, lng, flyTo = false) {
+            if (!leafletMap) return;
+            if (customPin) leafletMap.removeLayer(customPin);
+
+            // Blue marker icon
+            const blueIcon = L.divIcon({
+                className: '',
+                html: `<div style="width:22px;height:22px;background:#3b82f6;border:3px solid #fff;border-radius:50%;box-shadow:0 0 12px rgba(59,130,246,0.8);"></div>`,
+                iconSize: [22, 22], iconAnchor: [11, 11]
+            });
+            customPin = L.marker([lat, lng], { icon: blueIcon, draggable: true }).addTo(leafletMap);
+            customPin.bindTooltip('📍 Custom location — drag to move', { direction: 'top' });
+            customPinCoords = { lat, lng };
+
+            customPin.on('dragend', async (e) => {
+                const p = e.target.getLatLng();
+                customPinCoords = { lat: p.lat, lng: p.lng };
+                const name = await reverseGeocode(p.lat, p.lng);
+                updateCustomZoneOption(name, p.lat, p.lng);
+            });
+
+            if (flyTo) leafletMap.flyTo([lat, lng], 14, { duration: 1.2 });
+            else leafletMap.panTo([lat, lng]);
+
+            const name = await reverseGeocode(lat, lng);
+            updateCustomZoneOption(name, lat, lng);
+        }
+
+        function updateCustomZoneOption(name, lat, lng) {
+            const select = document.getElementById('crisis-zone');
+            let opt = document.getElementById('custom-location-opt');
+            if (!opt) {
+                opt = document.createElement('option');
+                opt.id = 'custom-location-opt';
+                select.appendChild(opt);
+            }
+            opt.value = `custom:${lat.toFixed(5)},${lng.toFixed(5)}`;
+            opt.textContent = `📍 ${name}`;
+            select.value = opt.value;
+        }
+
+        // ── Nominatim reverse geocoding (free, no key) ──
+        async function reverseGeocode(lat, lng) {
+            try {
+                const res = await fetch(
+                    `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`,
+                    { headers: { 'User-Agent': 'CIRO-Dashboard/1.0' } }
+                );
+                const d = await res.json();
+                const a = d.address || {};
+                return a.road || a.neighbourhood || a.suburb || a.city_district || d.display_name?.split(',')[0] || `${lat.toFixed(3)},${lng.toFixed(3)}`;
+            } catch { return `${lat.toFixed(3)},${lng.toFixed(3)}`; }
+        }
+
+        // Initialize map on page load
+        window.addEventListener('DOMContentLoaded', initMap);
 
         // Phase 2 + Phase 3: AI Analysis Integration
         async function analyzeCrisis() {
@@ -1233,29 +1429,10 @@
                 if (aEl) aEl.style.width  = `${afterVal}%`;
             }, 80));
 
-            // --- Map: turn resolved zone green ---
+            // --- Map: resolve zone on Leaflet map ---
             if (location) {
-                const zoneRect = document.getElementById(`zone-${location}`);
-                if (zoneRect) {
-                    zoneRect.style.transition = 'fill 1s ease, filter 1s ease';
-                    zoneRect.style.fill   = '#16a34a';
-                    zoneRect.style.filter = 'drop-shadow(0 0 15px rgba(22, 163, 74, 0.7))';
-                    // Update zone info panel
-                    zoneDataMap[location] = { type: actionType, severity: 0 };
-                    // Inject RESOLVED label into SVG (only once per zone)
-                    if (!document.getElementById(`resolved-${location}`)) {
-                        const svg  = document.querySelector('svg.map');
-                        const bbox = zoneRect.getBBox();
-                        const lbl  = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                        lbl.setAttribute('id',    `resolved-${location}`);
-                        lbl.setAttribute('x',     bbox.x + bbox.width / 2);
-                        lbl.setAttribute('y',     bbox.y + bbox.height / 2 + 20);
-                        lbl.setAttribute('class', 'map-label');
-                        lbl.setAttribute('style', 'fill:#4ade80;font-size:12px;font-weight:700;');
-                        lbl.textContent = '✓ RESOLVED';
-                        svg.appendChild(lbl);
-                    }
-                }
+                zoneDataMap[location] = { type: actionType, severity: 0 };
+                resolveZoneOnMap(location);
             }
         }
         // Phase 4: Scenario Runner
@@ -1337,13 +1514,11 @@
             document.getElementById('reasoning-steps').innerHTML = '';
             document.getElementById('agent-reasoning').style.display = 'none';
             document.getElementById('timeline-log').innerHTML = '<div class="timeline-line"></div><div style="color: var(--text-muted); text-align: center; margin-top: 20px; font-style: italic;" id="timeline-empty">System standing by for simulation execution.</div>';
-            document.getElementById('zone-info-panel').innerHTML = 'Awaiting live detection events.';
+            document.getElementById('zone-info-panel').innerHTML = 'Awaiting live detection events. Click any zone on the map or use 📍 My Location.';
             zoneDataMap = {};
-            document.querySelectorAll('.map-zone').forEach(el => {
-                el.style.fill = 'var(--map-inactive)';
-                el.style.filter = 'none';
-            });
-            document.querySelectorAll('text[id^="resolved-"]').forEach(el => el.remove());
+
+            // Reset Leaflet map markers (replaces SVG zone fill reset)
+            resetAllMapMarkers();
 
             // Reset enhancement panels
             document.getElementById('confidence-block').style.display = 'none';
