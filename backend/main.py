@@ -217,8 +217,11 @@ async def simulate_action(request: SimulateRequest):
     results = await pipeline.run_simulator_agent([action])
     
     if results:
-        return {"simulation_result": results[0].model_dump()}
-    return {"simulation_result": {"error": "Simulation failed"}}
+        return {
+            "simulation_result": results[0].model_dump(),
+            "agent_trace": [msg.model_dump() for msg in pipeline.agent_trace]
+        }
+    return {"simulation_result": {"error": "Simulation failed"}, "agent_trace": []}
 
 
 # (Duplicate /api/health route removed — see line 130 for the canonical definition)
