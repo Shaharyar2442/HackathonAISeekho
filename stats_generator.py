@@ -5,7 +5,7 @@ import random
 from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from models import AgentMessage, CrisisSignal
+from shared.models import AgentMessage, CrisisSignal
 from demo_runner import DemoRunner, ScenarioLoader
 
 TRACES_DIR = os.path.join(os.path.dirname(__file__), "agent_traces")

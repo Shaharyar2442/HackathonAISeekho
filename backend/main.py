@@ -25,6 +25,8 @@ from datetime import datetime
 
 # Add parent directory to path so we can import shared.models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+# Add current backend directory to path so sibling imports resolve
+sys.path.insert(0, os.path.dirname(__file__))
 
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -40,7 +42,6 @@ from shared.models import (
     AgentMessage,
 )
 from antigravity_pipeline import CIROPipeline
-from action_simulator import ActionSimulator
 from config import get_settings
 from db import get_db
 
@@ -188,48 +189,36 @@ async def detect_crisis(request: DetectRequest):
 async def get_actions(request: ActionsRequest):
     """Get recommended response actions for a given crisis.
     
-    In Phase 2, this will call the Coordinator Agent independently.
-    For now, returns mock actions.
+    Dynamically calls the Coordinator Agent to generate actions based on the crisis.
     """
-    mock_actions = [
-        ResponseAction(
-            id=f"act_{uuid.uuid4().hex[:6]}",
-            type="Traffic Reroute",
-            description=f"Divert traffic around {request.location}",
-            priority=1,
-            estimated_impact="Reduces congestion by 50%",
-        ).model_dump(),
-        ResponseAction(
-            id=f"act_{uuid.uuid4().hex[:6]}",
-            type="Emergency Dispatch",
-            description=f"Deploy response team to {request.location}",
-            priority=2,
-            estimated_impact="First responders on scene within 20 min",
-        ).model_dump(),
-    ]
-
-    return {"actions": mock_actions, "crisis_location": request.location}
+    pipeline = CIROPipeline()
+    crisis = DetectedCrisis(
+        type=request.crisis_type,
+        location=request.location,
+        severity=request.severity,
+        confidence=0.95,
+        reasoning="Generated from user request"
+    )
+    actions = await pipeline.run_coordinator_agent(crisis)
+    return {"actions": [a.model_dump() for a in actions], "crisis_location": request.location}
 
 
 @app.post("/api/simulate")
 async def simulate_action(request: SimulateRequest):
-    """Simulate execution of a response action using ActionSimulator."""
-    simulator = ActionSimulator()
-    action_lower = request.action_type.lower()
-
-    if any(kw in action_lower for kw in ["traffic", "reroute", "route", "divert", "redirect"]):
-        result = await simulator.simulate_traffic_reroute("Affected Area", "Kashmir Highway Alternate")
-    elif any(kw in action_lower for kw in ["dispatch", "emergency", "rescue", "ndma", "fire", "ambulance"]):
-        result = await simulator.simulate_emergency_dispatch("Affected Area")
-    elif any(kw in action_lower for kw in ["alert", "notify", "notification", "citizen", "public", "broadcast"]):
-        result = await simulator.simulate_citizen_alert("Affected Area")
-    else:
-        # Fallback to traffic reroute as most common action
-        result = await simulator.simulate_traffic_reroute("Affected Area", "Margalla Road Alternate")
-
-    # Override action_id with request's action_id
-    result.action_id = request.action_id
-    return {"simulation_result": result.model_dump()}
+    """Simulate execution of a response action using the Simulator Agent and Gemini Tools."""
+    pipeline = CIROPipeline()
+    action = ResponseAction(
+        id=request.action_id,
+        type=request.action_type,
+        description="Simulate this action based on context.",
+        priority=1,
+        estimated_impact="Pending AI simulation"
+    )
+    results = await pipeline.run_simulator_agent([action])
+    
+    if results:
+        return {"simulation_result": results[0].model_dump()}
+    return {"simulation_result": {"error": "Simulation failed"}}
 
 
 # (Duplicate /api/health route removed — see line 130 for the canonical definition)

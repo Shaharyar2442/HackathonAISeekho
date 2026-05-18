@@ -16,6 +16,9 @@ google-genai==1.14.0
 # Google Cloud Firestore
 google-cloud-firestore==2.19.0
 
+# Retries
+tenacity==8.3.0
+
 # Environment variable loading
 python-dotenv==1.0.1
 
