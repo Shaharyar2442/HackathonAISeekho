@@ -182,6 +182,16 @@ async def detect_crisis(request: DetectRequest):
     except Exception as e:
         print(f"WARNING: Could not save trace to Firestore (GCP not configured?): {e}")
 
+    # Phase 4: Broadcast real crisis detection to all connected WebSockets
+    broadcast_payload = {
+        "type": "new_crisis",
+        "crisis": result["detected_crisis"],
+        "actions": result["actions_recommended"],
+        "agent_trace": result["agent_trace"],
+        "signal": request.signals[0] if request.signals else {}
+    }
+    await manager.broadcast(broadcast_payload)
+
     return DetectResponse(**result)
 
 
@@ -231,47 +241,37 @@ async def simulate_action(request: SimulateRequest):
 # Phase 3: WebSockets & Logs
 # ------------------------------------------------------------------ #
 
-# Realistic Islamabad crisis signals for WebSocket live feed
-REALISTIC_SIGNALS = [
-    {"text": "G-10 mein pani bhar gaya hai, gaariyan phans gayi hain!", "crisis_type": "flood",    "severity": 5},
-    {"text": "G-10 nala overflow ho gaya, bohot pani aa raha hai",       "crisis_type": "flood",    "severity": 4},
-    {"text": "G-10 mein thodi baarish ke baad sadkon pe pani jam gaya",  "crisis_type": "flood",    "severity": 2},
-    {"text": "F-8 mein bari car crash, ambulance immediately chahiye!",   "crisis_type": "accident", "severity": 5},
-    {"text": "F-8 pe seriously injured hain log, rescue team bulao",       "crisis_type": "accident", "severity": 4},
-    {"text": "F-8 pe traffic jam lag gaya, accident ki wajah se",          "crisis_type": "accident", "severity": 3},
-    {"text": "Blue Area mein bijli nahi hai, offices band ho rahe hain",   "crisis_type": "outage",   "severity": 3},
-    {"text": "Blue Area transformer blast hua, power completely off",      "crisis_type": "outage",   "severity": 5},
-    {"text": "Blue Area mein bijli thodi wapas aayi, kuch sectors live",   "crisis_type": "outage",   "severity": 2},
-    {"text": "G-11 mein traffic jam lag gaya, Margalla Road block hai",    "crisis_type": "traffic",  "severity": 3},
-    {"text": "I-8 mein signal system kharab hai, bohot delay ho rahi hai", "crisis_type": "traffic",  "severity": 2},
-    {"text": "G-11 mein construction site pe accident hua, area seal",     "crisis_type": "accident", "severity": 3},
-    {"text": "I-8 mein gas leak report hua, log area khali kar rahe hain", "crisis_type": "fire",     "severity": 4},
-    {"text": "F-8 mein smoke reported near market, fire brigade alert",    "crisis_type": "fire",     "severity": 3},
-    {"text": "G-10 mein halki baarish, roads thodi slippery hain",         "crisis_type": "flood",    "severity": 1},
-]
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
 
-SOURCES = ["social_media", "citizen_report", "sensor_net", "field_officer", "weather_api"]
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        for connection in list(self.active_connections):
+            try:
+                await connection.send_json(message)
+            except Exception:
+                self.disconnect(connection)
+
+manager = ConnectionManager()
 
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
-    """WebSocket endpoint that broadcasts a realistic mock live signal every 5 seconds.
-    Uses Member 3's MockDataGenerator.
-    """
-    await websocket.accept()
-    generator = MockDataGenerator()
+    """WebSocket endpoint that broadcasts real reported crises."""
+    await manager.connect(websocket)
     try:
         while True:
-            # Use Member 3's generator for realistic signals
-            mock_signal = generator.generate(count=1)[0]
-            # Add some live metadata
-            signal_data = mock_signal.model_dump()
-            signal_data["id"] = str(uuid.uuid4())[:8]
-            signal_data["is_live"] = True
-            
-            await websocket.send_json(signal_data)
-            await asyncio.sleep(5)
+            # Keep connection alive
+            await websocket.receive_text()
     except WebSocketDisconnect:
-        print("WebSocket client disconnected")
+        manager.disconnect(websocket)
 
 
 @app.get("/api/aggregate/{zone}")
