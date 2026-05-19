@@ -30,6 +30,7 @@ Demonstrates an escalating situation where minor rain turns into a severe flood 
 ```bash
 python3 demo_runner.py --scenario A
 ```
+python -m uvicorn main:app --host 0.0.0.0
 
 ### 2. Scenario B: F-8 Accident
 Demonstrates a sudden spike in severity following a car crash, which then stabilizes as emergency services respond.

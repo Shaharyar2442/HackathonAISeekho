@@ -145,6 +145,125 @@ ISLAMABAD_CONTEXT = {
         "Faisal Mosque is 2 km north. Trail 5 hikers pass through frequently. "
         "Nearest hospital: Shifa International (2 km). Population ~28,000."
     ),
+    "I-9": (
+        "I-9 is a major industrial zone with factories, warehouses, and the Peshawar Mor interchange. "
+        "Heavy goods vehicles (HGVs) dominate traffic. I-9 Industrial Area has chemical storage facilities — fire hazard. "
+        "I-9/4 has CDA's main sewage treatment plant. Nullah from Margalla Hills passes through I-9/1. "
+        "Nearest hospital: Pakistan Air Force Hospital (PAF, 3 km). Fire station: I-9 CDA Fire Station. "
+        "Peshawar Mor Bus Rapid Transit (BRT) station handles 15,000+ daily commuters. Population ~30,000."
+    ),
+    "I-10": (
+        "I-10 is a large industrial and residential sector. I-10 Markaz is a growing commercial hub. "
+        "I-10/4 Industrial Area has manufacturing units and godowns (warehouses). "
+        "Adjacent to Islamabad Expressway — major north-south arterial. "
+        "Nearest hospital: National Institute of Rehabilitation Medicine (NIRM, 2 km). "
+        "CDA water supply reservoir in I-10/1. Population ~50,000. Multiple schools in I-10/1 and I-10/2."
+    ),
+    "G-6": (
+        "G-6 is adjacent to Blue Area CBD. Aabpara Market (G-6/1) is a historic commercial area. "
+        "ISI headquarters and several federal government buildings located here. "
+        "Heavy security presence. Melody Market (G-6/3) has dense commercial activity. "
+        "Nearest hospital: PIMS (2 km). Jinnah Avenue southern boundary. "
+        "Aabpara chowk is a major traffic intersection. Population ~25,000."
+    ),
+    "G-7": (
+        "G-7 Markaz (Sitara Market) has moderate commercial activity. Adjacent to Jinnah Avenue. "
+        "Pakistan Post headquarters and several government offices located here. "
+        "G-7/2 has the CDA headquarters building. G-7/3 connects to Shakarparian hills. "
+        "Nearest hospital: PIMS (1.5 km via Shakarparian Road). Population ~28,000."
+    ),
+    "G-8": (
+        "G-8 Markaz has busy commercial activity. Located along Kashmir Highway. "
+        "G-8/4 has Allama Iqbal Open University (AIOU) campus — large student population. "
+        "Nearest hospital: Federal Government Polyclinic (FGPC, 1.5 km in G-10). "
+        "Kashmir Highway creates high-speed traffic risk along G-8 boundary. Population ~40,000."
+    ),
+    "F-11": (
+        "F-11 is an upscale residential sector near Margalla Hills foothills. "
+        "F-11 Markaz has premium commercial outlets. Adjacent to E-11 and Margalla Avenue. "
+        "Hilly terrain — landslide risk during heavy monsoon. Limited public transport access. "
+        "Nearest hospital: Shifa International (3 km). Population ~22,000."
+    ),
+    "E-7": (
+        "E-7 is a high-end residential sector housing diplomats and senior officials. "
+        "Adjacent to Margalla Hills National Park — wildlife and hiking trails. "
+        "Trail 3 and Trail 5 entry points nearby. Low commercial activity. "
+        "Nearest hospital: Kulsum International (2 km in F-6). Limited CDA drainage. Population ~12,000."
+    ),
+    "H-8": (
+        "H-8 contains the Quaid-e-Azam University (QAU) campus — 10,000+ students. "
+        "Also houses COMSATS University Islamabad campus. Heavy student commuter traffic. "
+        "H-8/4 has NUST H-12 campus access road. Adjacent to Islamabad Expressway. "
+        "Nearest hospital: Quaid-e-Azam International Hospital H-8 (on-site). Population ~18,000 + students."
+    ),
+    "H-9": (
+        "H-9 has the Centaurus Mall and Residencia complex — Islamabad's largest shopping centre. "
+        "Extremely heavy vehicular traffic especially on weekends. Multi-level parking congestion. "
+        "H-9 connects to Jinnah Avenue and Islamabad Expressway via service roads. "
+        "Nearest hospital: Islamabad International Hospital (1 km). Population ~15,000."
+    ),
+    "D-12": (
+        "D-12 is a developing sector in north Islamabad near Margalla Hills. "
+        "D-12 connects to Murree Road via sector D-17 corridor. Hilly undulating terrain. "
+        "Limited CDA infrastructure — water supply issues. New housing societies under construction. "
+        "Nearest hospital: PIMS (8 km). Fire station coverage: F-10 station (6 km). Population ~10,000."
+    ),
+    "Rawat": (
+        "Rawat is an industrial town on the eastern edge of Islamabad near GT Road. "
+        "Heavy industrial activity including oil depots and factories — fire and chemical spill risk. "
+        "GT Road connects to Rawalpindi and Lahore. High truck traffic volume. "
+        "Nearest hospital: THQ Hospital Rawat. Rescue 1122 sub-station present. Population ~60,000."
+    ),
+    "Bhara Kahu": (
+        "Bhara Kahu is a peri-urban town on Murree Road at the northern edge of Islamabad. "
+        "Gateway to Murree hill station — extremely heavy tourist traffic on weekends and holidays. "
+        "Narrow winding roads. Flash flood risk from Margalla Hills runoff during monsoon. "
+        "Nearest hospital: Bhara Kahu Rural Health Centre, PIMS (12 km). Population ~45,000."
+    ),
+    "Tarnol": (
+        "Tarnol is a western suburb along GT Road with a major railway station (Islamabad West). "
+        "Industrial units and brick kilns in surrounding area. Railway crossing causes traffic bottlenecks. "
+        "Low-income residential area with limited drainage infrastructure. "
+        "Nearest hospital: Railway Hospital Rawalpindi (5 km). Population ~35,000."
+    ),
+    "Golra Sharif": (
+        "Golra Sharif is a historic town in western Islamabad with the Golra Sharif shrine. "
+        "Famous heritage railway station (now museum). Large religious gatherings create crowd management challenges. "
+        "Adjacent to Peshawar Mor interchange. Limited modern infrastructure. "
+        "Nearest hospital: HBS Hospital (2 km). Population ~30,000."
+    ),
+    "Faizabad": (
+        "Faizabad is a critical interchange connecting Islamabad and Rawalpindi via Murree Road. "
+        "One of the busiest intersections in the twin cities — handles 100,000+ vehicles daily. "
+        "Faizabad Interchange connects Kashmir Highway, Murree Road, and IJP Road. "
+        "Any blockage here paralyses traffic across both cities. Protest hotspot. "
+        "Nearest hospital: PIMS (3 km), Benazir Bhutto Hospital Rawalpindi (4 km). "
+        "ITP and Rawalpindi Traffic Police joint jurisdiction."
+    ),
+    "Soan Garden": (
+        "Soan Garden is a residential cooperative housing society in Zone IV. "
+        "Adjacent to Islamabad Expressway. Limited CDA maintenance — relies on society management. "
+        "Narrow internal roads. Single main entry/exit gate creates bottleneck. "
+        "Nearest hospital: Islamabad International Hospital (3 km). Population ~20,000."
+    ),
+    "PWD Housing Society": (
+        "PWD (Pakistan Public Works Department) Housing Society is a large residential area near Rawat. "
+        "High population density. Adjacent to Islamabad Expressway and Rawat industrial zone. "
+        "Frequent water supply issues. Internal roads prone to waterlogging. "
+        "Nearest hospital: Shifa International Satellite Clinic (2 km). Population ~55,000."
+    ),
+    "DHA Islamabad": (
+        "Defence Housing Authority (DHA) Islamabad is a premium planned community in Zone V. "
+        "Phase I and II are developed. Well-maintained roads and infrastructure. "
+        "Own fire brigade and security. Adjacent to GT Road and Islamabad Expressway. "
+        "DHA Medical Centre on-site. Nearest major hospital: CMH Rawalpindi (8 km). Population ~40,000."
+    ),
+    "Bahria Town Islamabad": (
+        "Bahria Town is Pakistan's largest private housing scheme on GT Road near Rawat. "
+        "Self-contained with own hospital (Bahria International Hospital), fire brigade, and security. "
+        "Single main gate access creates severe congestion during peak hours. "
+        "Internal road network is extensive but isolated from city grid. Population ~100,000+."
+    ),
 }
 
 DEFAULT_CONTEXT = (
