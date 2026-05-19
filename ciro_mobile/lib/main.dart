@@ -769,35 +769,45 @@ class _MapScreenState extends State<MapScreen> {
   Set<Marker> _buildMarkers() {
     final allSignals = [...ApiService.locallyReportedSignals, ..._liveSignals];
     return allSignals.map((signal) {
-      LatLng? latLng = signal['computed_latlng'];
+      // 1. Try pre-computed LatLng (set by WebSocket listener)
+      LatLng? latLng = signal['computed_latlng'] as LatLng?;
+
+      // 2. Fall back to raw lat/lng doubles (locally reported signals)
       if (latLng == null) {
-        if (signal['lat'] != null && signal['lng'] != null) {
-          latLng = LatLng((signal['lat'] as num).toDouble(), (signal['lng'] as num).toDouble());
-        } else {
-          latLng = _zoneCoordinates[signal['location']];
+        final rawLat = signal['lat'];
+        final rawLng = signal['lng'];
+        if (rawLat != null && rawLng != null) {
+          latLng = LatLng((rawLat as num).toDouble(), (rawLng as num).toDouble());
         }
       }
+
+      // 3. Fall back to named zone lookup
+      if (latLng == null) {
+        latLng = _zoneCoordinates[signal['location']];
+      }
+
       if (latLng == null) return null;
-      
+
+      final isLocal = signal['full_crisis'] == null;
+
       return Marker(
-        markerId: MarkerId(signal['text'] ?? DateTime.now().toString()),
+        markerId: MarkerId('${signal['number'] ?? signal['text'] ?? DateTime.now().millisecondsSinceEpoch}'),
         position: latLng,
         infoWindow: InfoWindow(
-          title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? 1})',
-          snippet: 'Tap to view simulation & actions',
-          onTap: () {
-            if (signal['full_crisis'] != null) {
-              Navigator.pushNamed(context, '/response', arguments: {
-                'detectedCrisis': signal['full_crisis'],
-                'actions': signal['actions'] ?? [],
-                'agentTrace': signal['agentTrace'] ?? [],
-              });
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Locally reported signal pending backend validation.')));
-            }
+          title: '${signal['crisis_type'] ?? 'Report'} (Sev ${signal['severity'] ?? '?'})',
+          snippet: isLocal ? 'Pending AI analysis…' : 'Tap to view actions →',
+          onTap: isLocal ? null : () {
+            Navigator.pushNamed(context, '/response', arguments: {
+              'detectedCrisis': signal['full_crisis'],
+              'actions': signal['actions'] ?? [],
+              'agentTrace': signal['agentTrace'] ?? [],
+            });
           },
         ),
-        icon: _markerIcons[signal['text'] ?? signal['number']?.toString() ?? 'local'] ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(signal)),
+        icon: _markerIcons[signal['number']?.toString() ?? 'local'] ??
+            BitmapDescriptor.defaultMarkerWithHue(
+              isLocal ? BitmapDescriptor.hueYellow : _getMarkerHue(signal),
+            ),
       );
     }).whereType<Marker>().toSet();
   }
@@ -806,92 +816,97 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GoogleMap(
-                myLocationButtonEnabled: true,
-                myLocationEnabled: _locationGranted,
-                zoomControlsEnabled: false,
-                initialCameraPosition: const CameraPosition(
-                  target: LatLng(33.6844, 73.0479),
-                  zoom: 12.0,
-                ),
-                markers: _buildMarkers(),
-              ),
-            ),
-            if (_liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
-              Positioned(
-                top: 16,
-                left: 16,
-                right: 16,
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+        child: ValueListenableBuilder<int>(
+          valueListenable: ApiService.signalsChanged,
+          builder: (context, _, __) {
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: GoogleMap(
+                    myLocationButtonEnabled: true,
+                    myLocationEnabled: _locationGranted,
+                    zoomControlsEnabled: false,
+                    initialCameraPosition: const CameraPosition(
+                      target: LatLng(33.6844, 73.0479),
+                      zoom: 12.0,
+                    ),
+                    markers: _buildMarkers(),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.sensors, color: Theme.of(context).colorScheme.primary, size: 18),
-                          const SizedBox(width: 8),
-                          Text('Live Signal Feed', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-                        ],
+                ),
+                if (_liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
+                  Positioned(
+                    top: 16,
+                    left: 16,
+                    right: 16,
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withOpacity(0.9),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
                       ),
-                      const SizedBox(height: 8),
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 150),
-                        child: Scrollbar(
-                          controller: _feedScrollController,
-                          thumbVisibility: true,
-                          child: SingleChildScrollView(
-                            controller: _feedScrollController,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 4, right: 8),
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: _getSignalColor(s),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.sensors, color: Theme.of(context).colorScheme.primary, size: 18),
+                              const SizedBox(width: 8),
+                              Text('Live Signal Feed', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 150),
+                            child: Scrollbar(
+                              controller: _feedScrollController,
+                              thumbVisibility: true,
+                              child: SingleChildScrollView(
+                                controller: _feedScrollController,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 8.0),
+                                    child: Row(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          margin: const EdgeInsets.only(top: 4, right: 8),
+                                          width: 8,
+                                          height: 8,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: _getSignalColor(s),
+                                          ),
+                                        ),
+                                        Text(
+                                          '#${s['number'] ?? '-'} ',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color: _getSignalColor(s),
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            s['text'] ?? 'Unknown signal',
+                                            style: Theme.of(context).textTheme.bodySmall,
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  Text(
-                                    '#${s['number'] ?? '-'} ',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: _getSignalColor(s),
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      s['text'] ?? 'Unknown signal', 
-                                      style: Theme.of(context).textTheme.bodySmall,
-                                      ),
-                                  ),
-                                ],
+                                  )).toList(),
+                                ),
                               ),
-                              )).toList(),
                             ),
                           ),
-                        ),
-                      )
-                    ],
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
