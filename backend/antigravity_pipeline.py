@@ -23,8 +23,24 @@ from shared.models import (
 from config import get_settings
 from google import genai
 from google.genai import types
-from tenacity import retry, stop_after_attempt, wait_exponential
+import asyncio
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from action_simulator import calculate_simulation_metrics
+
+def async_retry(func):
+    """Wraps an async function with tenacity retry using asyncio-compatible approach."""
+    import functools
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        from tenacity import AsyncRetrying
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=10),
+            reraise=True,
+        ):
+            with attempt:
+                return await func(*args, **kwargs)
+    return wrapper
 
 # ------------------------------------------------------------------ #
 # Wrapper Models for Gemini Structured Outputs
@@ -167,7 +183,7 @@ class CIROPipeline:
             "agent_trace": [msg.model_dump() for msg in self.agent_trace],
         }
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @async_retry
     async def run_sensor_agent(self, raw_signals: list[dict]) -> list[CrisisSignal]:
         prompt = f"Raw Signals: {json.dumps(raw_signals)}\n\nNormalise these crisis signals into a structured JSON list of CrisisSignal objects."
         
@@ -198,7 +214,8 @@ class CIROPipeline:
             "(3) why you assigned that specific severity level."
         )
         
-        response = self.client.models.generate_content(
+        response = await asyncio.to_thread(
+            self.client.models.generate_content,
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -221,7 +238,7 @@ class CIROPipeline:
         )
         return output.signals
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @async_retry
     async def run_analyst_agent(self, signals: list[CrisisSignal]) -> DetectedCrisis:
         signals_json = [s.model_dump() for s in signals]
         prompt = f"Normalised Signals: {json.dumps(signals_json)}\n\nAnalyse these CrisisSignal objects and produce a DetectedCrisis assessment."
@@ -250,14 +267,15 @@ class CIROPipeline:
             "Show your analytical process — signal grouping, severity derivation, confidence calculation."
         )
         
-        response = self.client.models.generate_content(
+        response = await asyncio.to_thread(
+            self.client.models.generate_content,
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=AnalystAgentOutput,
-                temperature=0.5,  # Fix #3: Higher temp for varied reasoning
+                temperature=0.5,
             )
         )
         
@@ -273,7 +291,7 @@ class CIROPipeline:
         )
         return output.crisis
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @async_retry
     async def run_coordinator_agent(self, crisis: DetectedCrisis) -> list[ResponseAction]:
         # Fix #5: Inject real location context
         location_info = ISLAMABAD_CONTEXT.get(crisis.location, DEFAULT_CONTEXT)
@@ -339,14 +357,15 @@ class CIROPipeline:
             "3. Why you prioritised each action at its level."
         )
         
-        response = self.client.models.generate_content(
+        response = await asyncio.to_thread(
+            self.client.models.generate_content,
             model=self.model_name,
             contents=prompt,
             config=types.GenerateContentConfig(
                 system_instruction=sys_instruct,
                 response_mime_type="application/json",
                 response_schema=CoordinatorAgentOutput,
-                temperature=0.7,  # Fix #3: Higher temp for creative action plans
+                temperature=0.7,
             )
         )
         
@@ -362,7 +381,7 @@ class CIROPipeline:
         )
         return output.actions
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @async_retry
     async def run_simulator_agent(self, actions: list[ResponseAction]) -> list[SimulationResult]:
         actions_json = [a.model_dump() for a in actions]
         
@@ -378,18 +397,19 @@ class CIROPipeline:
             "4. Overall effectiveness assessment of the response plan."
         )
 
-        chat = self.client.chats.create(
+        chat = await asyncio.to_thread(
+            self.client.chats.create,
             model=self.model_name,
             config=types.GenerateContentConfig(
                 system_instruction=sys_instruct,
-                temperature=0.6,  # Fix #3: Higher temp for varied simulation narratives
+                temperature=0.6,
                 tools=[calculate_simulation_metrics]
             )
         )
         
         # Step 1: Ask the agent to use the tools
         prompt = f"Response Actions: {json.dumps(actions_json)}\n\nPlease call the tool to simulate the execution of these actions."
-        response = chat.send_message(prompt)
+        response = await asyncio.to_thread(chat.send_message, prompt)
         
         # Step 2: If the model called tools, execute them and send results back
         if response.function_calls:
@@ -409,10 +429,11 @@ class CIROPipeline:
                     )
             
             # Send the tool output back to the model
-            response = chat.send_message(types.Content(parts=function_responses))
+            response = await asyncio.to_thread(chat.send_message, types.Content(parts=function_responses))
             
         # Step 3: Now ask the model to format its findings into the final structured JSON
-        final_response = chat.send_message(
+        final_response = await asyncio.to_thread(
+            chat.send_message,
             "Great. Now, based on the simulation results you received, output the final JSON matching the SimulatorAgentOutput schema.",
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
