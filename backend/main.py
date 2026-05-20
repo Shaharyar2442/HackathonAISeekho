@@ -44,6 +44,7 @@ from shared.models import (
 from antigravity_pipeline import CIROPipeline
 from config import get_settings
 from db import get_db
+from persistence import save_crisis_event, load_recent_crisis_events
 
 from signal_processor import MockDataGenerator
 from signal_aggregator import SignalAggregator, CrisisScorer, AggregatorAgentLogger
@@ -99,6 +100,12 @@ async def _agent_signal_loop():
                 'signal': signal_with_coords,
             }
             await manager.broadcast(payload)
+            # Persist to Firestore
+            try:
+                db = get_db()
+                await save_crisis_event(db, result, signal=signal_with_coords, source="agent_generated")
+            except Exception as fe:
+                print(f"[BG] Firestore save failed (non-fatal): {fe}")
             print(f"[BG] Broadcast agent crisis: {result['detected_crisis'].get('type')} @ {loc}")
         except Exception as e:
             print(f"[BG] Agent signal loop error (non-fatal): {e}")
@@ -237,17 +244,16 @@ async def detect_crisis(request: DetectRequest):
         print(f"ERROR in pipeline: {e}")
         raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
 
-    # Phase 2: Save agent_trace to Firestore here
+    # Persist to Firestore (crisis_events collection)
     try:
         db = get_db()
-        db.collection("agent_traces").add({
-            "trace_id": str(uuid.uuid4()),
-            "timestamp": datetime.now().isoformat(),
-            "agent_trace": result["agent_trace"],
-            "crisis": result["detected_crisis"],
-        })
+        await save_crisis_event(
+            db, result,
+            signal=request.signals[0] if request.signals else {},
+            source="user_report",
+        )
     except Exception as e:
-        print(f"WARNING: Could not save trace to Firestore (GCP not configured?): {e}")
+        print(f"WARNING: Could not save to Firestore: {e}")
 
     # Phase 4: Broadcast real crisis detection to all connected WebSockets
     broadcast_payload = {
@@ -336,8 +342,35 @@ manager = ConnectionManager()
 
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):
-    """WebSocket endpoint that broadcasts real reported crises."""
+    """WebSocket endpoint. Sends recent history from Firestore on connect,
+    then streams real-time crises as they are detected."""
     await manager.connect(websocket)
+    # Send recent history so the map is populated immediately on app open
+    try:
+        db = get_db()
+        history = await load_recent_crisis_events(db, limit=20)
+        for event in reversed(history):  # oldest first so map numbers ascend
+            await websocket.send_json({
+                "type": "new_crisis",
+                "crisis": {
+                    "type": event.get("crisis_type", "Unknown"),
+                    "location": event.get("location", "Unknown"),
+                    "severity": event.get("severity", 1),
+                    "confidence": event.get("confidence", 0.0),
+                    "reasoning": event.get("reasoning", ""),
+                },
+                "actions": event.get("actions", []),
+                "agent_trace": event.get("agent_trace", []),
+                "signal": {
+                    "text": f"[History] {event.get('crisis_type')} @ {event.get('location')}",
+                    "lat": event.get("lat"),
+                    "lng": event.get("lng"),
+                    "location": event.get("location"),
+                    "source": event.get("source", "history"),
+                },
+            })
+    except Exception as e:
+        print(f"[WS] Could not send history: {e}")
     try:
         while True:
             # Keep connection alive
