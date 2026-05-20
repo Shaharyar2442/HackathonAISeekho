@@ -44,7 +44,7 @@ from shared.models import (
 from antigravity_pipeline import CIROPipeline
 from config import get_settings
 from db import get_db
-from persistence import save_crisis_event, load_recent_crisis_events
+from persistence import save_crisis_event, load_recent_crisis_events, update_crisis_severity
 
 from signal_processor import MockDataGenerator
 from signal_aggregator import SignalAggregator, CrisisScorer, AggregatorAgentLogger
@@ -186,6 +186,11 @@ class SimulateRequest(BaseModel):
     action_id: str
     action_type: str
 
+class ReduceSeverityRequest(BaseModel):
+    """Request body for POST /api/reduce_severity."""
+    location: str
+    new_severity: int
+
 
 # ------------------------------------------------------------------ #
 # In-memory signal store (replaced by Firestore in Phase 2)
@@ -267,6 +272,17 @@ async def detect_crisis(request: DetectRequest):
 
     return DetectResponse(**result)
 
+
+@app.post("/api/reduce_severity")
+async def reduce_severity(request: ReduceSeverityRequest):
+    """Update the severity of an incident after an action is simulated."""
+    try:
+        db = get_db()
+        success = await update_crisis_severity(db, request.location, request.new_severity)
+        return {"status": "success" if success else "not_found"}
+    except Exception as e:
+        print(f"Error reducing severity: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/actions")
 async def get_actions(request: ActionsRequest):

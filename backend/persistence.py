@@ -60,3 +60,18 @@ def _load_recent_events(db, limit: int = 20) -> list[dict]:
 async def load_recent_crisis_events(db, limit: int = 20) -> list[dict]:
     """Async-safe wrapper: loads recent crisis events for broadcasting to new WS clients."""
     return await asyncio.to_thread(_load_recent_events, db, limit)
+
+def _update_severity(db, location: str, new_severity: int) -> bool:
+    try:
+        docs = db.collection("crisis_events").where("location", "==", location).limit(5).stream()
+        count = 0
+        for doc in docs:
+            doc.reference.update({"severity": new_severity})
+            count += 1
+        return count > 0
+    except Exception as e:
+        print(f"[Firestore] Update severity failed: {e}")
+        return False
+
+async def update_crisis_severity(db, location: str, new_severity: int) -> bool:
+    return await asyncio.to_thread(_update_severity, db, location, new_severity)
