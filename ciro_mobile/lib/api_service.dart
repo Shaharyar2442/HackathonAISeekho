@@ -7,6 +7,7 @@ class ApiService {
   static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
 
   static final List<Map<String, dynamic>> locallyReportedSignals = [];
+  static final List<Map<String, dynamic>> liveSignals = [];
   static int _localCounter = 0;
 
   /// Notifies listeners when locallyReportedSignals changes (new insert or update).
