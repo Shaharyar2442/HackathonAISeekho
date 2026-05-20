@@ -59,9 +59,11 @@ class _MetricsScreenState extends State<MetricsScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Summary Cards
-              Row(
-                children: [
-                  Expanded(
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
                     child: _buildMetricCard(
                       context,
                       'Total Incidents',
@@ -92,7 +94,8 @@ class _MetricsScreenState extends State<MetricsScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 24),
               
               Text(
                 'Incidents by Type',

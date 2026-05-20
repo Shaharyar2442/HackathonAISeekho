@@ -1239,8 +1239,17 @@ class ResponseScreen extends StatelessWidget {
                         'agent_trace': agentTrace,
                         'exported_at': DateTime.now().toIso8601String(),
                       });
-                      final dir = await getApplicationDocumentsDirectory();
-                      final file = File('${dir.path}/ciro_agent_trace_${DateTime.now().millisecondsSinceEpoch}.json');
+                      Directory? dir;
+                      if (Platform.isAndroid) {
+                        // Request permission just in case
+                        await Permission.storage.request();
+                        await Permission.manageExternalStorage.request();
+                        dir = Directory('/storage/emulated/0/Download');
+                        if (!await dir.exists()) dir = await getExternalStorageDirectory();
+                      } else {
+                        dir = await getApplicationDocumentsDirectory();
+                      }
+                      final file = File('${dir!.path}/ciro_agent_trace_${DateTime.now().millisecondsSinceEpoch}.json');
                       await file.writeAsString(traceJson);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
