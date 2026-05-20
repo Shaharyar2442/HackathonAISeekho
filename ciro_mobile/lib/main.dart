@@ -406,12 +406,16 @@ class _HomeScreenState extends State<HomeScreen> {
         automaticallyImplyLeading: false,
         title: Text('CIRO Monitor', style: TextStyle(fontWeight: FontWeight.w500, color: theme.colorScheme.primary)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            },
-          )
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton.filledTonal(
+              icon: const Icon(Icons.settings_outlined),
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              },
+              tooltip: 'Settings',
+            ),
+          ),
         ],
       ),
       body: SingleChildScrollView(
@@ -766,6 +770,16 @@ class _MapScreenState extends State<MapScreen> {
     return BitmapDescriptor.hueAzure;
   }
 
+  String _severityLabel(int severity) {
+    switch (severity) {
+      case 5: return 'Critical';
+      case 4: return 'Severe';
+      case 3: return 'Significant';
+      case 2: return 'Moderate';
+      default: return 'Minor';
+    }
+  }
+
   Set<Marker> _buildMarkers() {
     final allSignals = [...ApiService.locallyReportedSignals, ..._liveSignals];
     return allSignals.map((signal) {
@@ -866,36 +880,59 @@ class _MapScreenState extends State<MapScreen> {
                                 controller: _feedScrollController,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 8.0),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Container(
-                                          margin: const EdgeInsets.only(top: 4, right: 8),
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            shape: BoxShape.circle,
-                                            color: _getSignalColor(s),
+                                  children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) {
+                                    final severity = s['severity'];
+                                    final severityLabel = severity != null
+                                        ? _severityLabel(severity as int)
+                                        : 'Pending';
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 10.0),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            margin: const EdgeInsets.only(top: 4, right: 6),
+                                            width: 9,
+                                            height: 9,
+                                            decoration: BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: _getSignalColor(s),
+                                            ),
                                           ),
-                                        ),
-                                        Text(
-                                          '#${s['number'] ?? '-'} ',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color: _getSignalColor(s),
+                                          Text(
+                                            '#${s['number'] ?? '-'} ',
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color: _getSignalColor(s),
+                                            ),
                                           ),
-                                        ),
-                                        Expanded(
-                                          child: Text(
-                                            s['text'] ?? 'Unknown signal',
-                                            style: Theme.of(context).textTheme.bodySmall,
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                            margin: const EdgeInsets.only(right: 6),
+                                            decoration: BoxDecoration(
+                                              color: _getSignalColor(s).withOpacity(0.15),
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              severityLabel,
+                                              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                color: _getSignalColor(s),
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  )).toList(),
+                                          Expanded(
+                                            child: Text(
+                                              s['text'] ?? 'Unknown signal',
+                                              style: Theme.of(context).textTheme.bodySmall,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
                                 ),
                               ),
                             ),
