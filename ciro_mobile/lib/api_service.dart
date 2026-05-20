@@ -14,33 +14,7 @@ class ApiService {
   static final signalsChanged = ValueNotifier<int>(0);
   static void _notifySignals() => signalsChanged.value++;
 
-<<<<<<< Updated upstream
-=======
-  /// Decrements severity by 1 (min 1) for all signals matching [location].
-  /// Called when a user takes an action on an incident.
-  static void reduceSeverity(String location) {
-    bool changed = false;
-    final locLower = location.toLowerCase();
-    for (final list in [locallyReportedSignals, liveSignals]) {
-      for (final s in list) {
-        final sLoc = (s['location']?.toString() ?? '').toLowerCase();
-        if (sLoc == locLower || sLoc.contains(locLower) || locLower.contains(sLoc)) {
-          final cur = (s['severity'] as num?)?.toInt() ?? 1;
-          if (cur > 1) {
-            s['severity'] = cur - 1;
-            // Also update full_crisis if present
-            if (s['full_crisis'] != null) {
-              (s['full_crisis'] as Map<String, dynamic>)['severity'] = cur - 1;
-            }
-            changed = true;
-          }
-        }
-      }
-    }
-    if (changed) _notifySignals();
-  }
 
->>>>>>> Stashed changes
   /// Map UI type strings → canonical backend values expected by the pipeline agents.
   static String _normalizeType(String type) {
     switch (type.toLowerCase()) {
@@ -129,9 +103,11 @@ class ApiService {
   static Future<void> reduceSeverity(String location) async {
     bool changed = false;
     int targetSeverity = 1;
+    final locLower = location.toLowerCase();
     for (final list in [locallyReportedSignals, liveSignals]) {
       for (final s in list) {
-        if (s['location'] == location) {
+        final sLoc = (s['location']?.toString() ?? '').toLowerCase();
+        if (sLoc == locLower || sLoc.contains(locLower) || locLower.contains(sLoc)) {
           final cur = (s['severity'] as num?)?.toInt() ?? 1;
           if (cur > 1) {
             final newSeverity = cur - 1;
