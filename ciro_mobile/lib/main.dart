@@ -705,36 +705,6 @@ class _MapScreenState extends State<MapScreen> {
             }
           }
           
-          // Trigger notification if nearby (e.g. within 10km)
-          if (computedLatLng != null && _locationGranted) {
-            try {
-              final pos = await Geolocator.getLastKnownPosition();
-              if (pos != null) {
-                final dist = Geolocator.distanceBetween(pos.latitude, pos.longitude, computedLatLng.latitude, computedLatLng.longitude);
-                if (dist < 10000) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('⚠️ Alert nearby: ${data['crisis_type']}!'),
-                      backgroundColor: Colors.red.shade800,
-                      action: SnackBarAction(
-                        label: 'VIEW ACTIONS',
-                        textColor: Colors.white,
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/response', arguments: {
-                            'detectedCrisis': data['full_crisis'],
-                            'actions': data['actions'],
-                            'agentTrace': data['agentTrace'],
-                          });
-                        },
-                      ),
-                      duration: const Duration(seconds: 10),
-                    ),
-                  );
-                }
-              }
-            } catch (_) {}
-          }
-          
           _createNumberedMarker(currentNumber, _getSignalColor(data)).then((icon) {
             if (mounted) {
               setState(() {
