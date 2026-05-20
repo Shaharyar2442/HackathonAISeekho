@@ -747,6 +747,27 @@ class _MapScreenState extends State<MapScreen> {
             ApiService.liveSignals.insert(0, data);
             ApiService.signalsChanged.value++;
           });
+        } else if (rawData is Map<String, dynamic> && rawData['type'] == 'severity_update') {
+          final loc = rawData['location']?.toString().toLowerCase();
+          final newSev = rawData['new_severity'];
+          if (loc != null && newSev != null) {
+            bool changed = false;
+            for (final list in [ApiService.locallyReportedSignals, ApiService.liveSignals]) {
+              for (final s in list) {
+                final sLoc = (s['location']?.toString() ?? '').toLowerCase();
+                if (sLoc == loc || sLoc.contains(loc) || loc.contains(sLoc)) {
+                  s['severity'] = newSev;
+                  if (s['full_crisis'] != null) s['full_crisis']['severity'] = newSev;
+                  changed = true;
+                }
+              }
+            }
+            if (changed && mounted) {
+              setState(() {
+                ApiService.signalsChanged.value++;
+              });
+            }
+          }
         }
       }, onError: (e) {
         print("WebSocket error: $e");
