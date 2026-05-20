@@ -121,6 +121,44 @@ class ApiService {
     return data as Map<String, dynamic>;
   }
 
+  static Future<void> reduceSeverity(String location) async {
+    bool changed = false;
+    int targetSeverity = 1;
+    for (final list in [locallyReportedSignals, liveSignals]) {
+      for (final s in list) {
+        if (s['location'] == location) {
+          final cur = (s['severity'] as num?)?.toInt() ?? 1;
+          if (cur > 1) {
+            final newSeverity = cur - 1;
+            s['severity'] = newSeverity;
+            targetSeverity = newSeverity;
+            // Also update full_crisis if present
+            if (s['full_crisis'] != null) {
+              (s['full_crisis'] as Map<String, dynamic>)['severity'] = newSeverity;
+            }
+            changed = true;
+          }
+        }
+      }
+    }
+    if (changed) {
+      _notifySignals();
+      // Notify backend to update persistence
+      try {
+        await http.post(
+          Uri.parse('$baseUrl/reduce_severity'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'location': location,
+            'new_severity': targetSeverity,
+          }),
+        );
+      } catch (e) {
+        debugPrint('Failed to update backend severity: $e');
+      }
+    }
+  }
+
   static Future<Map<String, dynamic>> simulateAction(String actionType, String actionId) async {
     final res = await http.post(
       Uri.parse('$baseUrl/simulate'),

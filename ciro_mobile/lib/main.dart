@@ -14,6 +14,7 @@ import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'api_service.dart';
+import 'metrics_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -264,6 +265,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _pages = const [
     HomeScreen(),
     MapScreen(),
+    MetricsScreen(),
   ];
 
   @override
@@ -290,6 +292,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.map_outlined),
             selectedIcon: Icon(Icons.map),
             label: 'Live Map',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bar_chart_outlined),
+            selectedIcon: Icon(Icons.bar_chart),
+            label: 'Metrics',
           ),
         ],
       ),
@@ -844,6 +851,7 @@ class _MapScreenState extends State<MapScreen> {
                       target: LatLng(33.6844, 73.0479),
                       zoom: 12.0,
                     ),
+                    style: Theme.of(context).brightness == Brightness.dark ? _darkMapStyle : null,
                     markers: _buildMarkers(),
                   ),
                 ),
@@ -1233,8 +1241,17 @@ class ResponseScreen extends StatelessWidget {
                         'agent_trace': agentTrace,
                         'exported_at': DateTime.now().toIso8601String(),
                       });
-                      final dir = await getApplicationDocumentsDirectory();
-                      final file = File('${dir.path}/ciro_agent_trace_${DateTime.now().millisecondsSinceEpoch}.json');
+                      Directory? dir;
+                      if (Platform.isAndroid) {
+                        // Request permission just in case
+                        await Permission.storage.request();
+                        await Permission.manageExternalStorage.request();
+                        dir = Directory('/storage/emulated/0/Download');
+                        if (!await dir.exists()) dir = await getExternalStorageDirectory();
+                      } else {
+                        dir = await getApplicationDocumentsDirectory();
+                      }
+                      final file = File('${dir!.path}/ciro_agent_trace_${DateTime.now().millisecondsSinceEpoch}.json');
                       await file.writeAsString(traceJson);
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -1636,3 +1653,171 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 }
+
+// ==========================================
+// Map Styles
+// ==========================================
+
+const String _darkMapStyle = '''
+[
+  {
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#242f3e"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#746855"
+      }
+    ]
+  },
+  {
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#242f3e"
+      }
+    ]
+  },
+  {
+    "featureType": "administrative.locality",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#d59563"
+      }
+    ]
+  },
+  {
+    "featureType": "poi",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#d59563"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#263c3f"
+      }
+    ]
+  },
+  {
+    "featureType": "poi.park",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#6b9a76"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#38414e"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#212a37"
+      }
+    ]
+  },
+  {
+    "featureType": "road",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#9ca5b3"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#746855"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "geometry.stroke",
+    "stylers": [
+      {
+        "color": "#1f2835"
+      }
+    ]
+  },
+  {
+    "featureType": "road.highway",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#f3d19c"
+      }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#2f3948"
+      }
+    ]
+  },
+  {
+    "featureType": "transit.station",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#d59563"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "geometry",
+    "stylers": [
+      {
+        "color": "#17263c"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.fill",
+    "stylers": [
+      {
+        "color": "#515c6d"
+      }
+    ]
+  },
+  {
+    "featureType": "water",
+    "elementType": "labels.text.stroke",
+    "stylers": [
+      {
+        "color": "#17263c"
+      }
+    ]
+  }
+]
+''';
