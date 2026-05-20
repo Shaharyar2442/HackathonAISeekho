@@ -52,6 +52,68 @@ from signal_aggregator import SignalAggregator, CrisisScorer, AggregatorAgentLog
 # FastAPI Application
 # ------------------------------------------------------------------ #
 
+# ------------------------------------------------------------------ #
+# Background Agent Signal Generator
+# ------------------------------------------------------------------ #
+
+from contextlib import asynccontextmanager
+
+async def _agent_signal_loop():
+    """Runs every 90 s. Picks one realistic signal, runs the full pipeline,
+    and broadcasts the result to all connected WebSocket clients."""
+    # Islamabad zones with coordinates for realistic spreading
+    ZONE_COORDS = {
+        'G-10': (33.6990, 73.0390), 'G-11': (33.6910, 73.0300),
+        'F-8':  (33.7150, 73.0430), 'I-8':  (33.6840, 73.0710),
+        'Blue Area': (33.7230, 73.0885), 'F-7': (33.7250, 73.0560),
+        'G-9': (33.7070, 73.0480), 'F-6': (33.7310, 73.0660),
+    }
+    AGENT_SIGNALS = [
+        {"text": "G-10 mein pani bhar gaya hai, gaariyan phans gayi hain!", "crisis_type": "Urban Flooding", "location": "G-10", "source": "social_media"},
+        {"text": "F-8 mein bari car crash, ambulance immediately chahiye!", "crisis_type": "Severe Accident", "location": "F-8", "source": "sensor"},
+        {"text": "Blue Area transformer blast hua, power completely off", "crisis_type": "Power Infrastructure", "location": "Blue Area", "source": "citizen_report"},
+        {"text": "G-11 mein traffic jam lag gaya, Margalla Road block hai", "crisis_type": "Traffic Gridlock", "location": "G-11", "source": "sensor"},
+        {"text": "I-8 mein gas leak report hua, log area khali kar rahe hain", "crisis_type": "Fire Hazard", "location": "I-8", "source": "field_officer"},
+        {"text": "F-7 mein smoke reported near market, fire brigade alert", "crisis_type": "Fire Hazard", "location": "F-7", "source": "social_media"},
+        {"text": "G-9 nala overflow ho raha hai, heavy rain expected", "crisis_type": "Urban Flooding", "location": "G-9", "source": "weather_api"},
+        {"text": "F-6 mein bijli nahi hai, offices band ho rahe hain", "crisis_type": "Power Infrastructure", "location": "F-6", "source": "citizen_report"},
+    ]
+    idx = 0
+    await asyncio.sleep(15)  # initial delay so server is fully up
+    while True:
+        try:
+            raw = AGENT_SIGNALS[idx % len(AGENT_SIGNALS)]
+            idx += 1
+            loc = raw['location']
+            coords = ZONE_COORDS.get(loc, (33.6844, 73.0479))
+            signal_with_coords = {**raw, 'lat': coords[0], 'lng': coords[1], 'timestamp': datetime.now().isoformat()}
+
+            pipeline = CIROPipeline()
+            result = await pipeline.execute([signal_with_coords])
+
+            payload = {
+                'type': 'new_crisis',
+                'crisis': result['detected_crisis'],
+                'actions': result['actions_recommended'],
+                'agent_trace': result['agent_trace'],
+                'signal': signal_with_coords,
+            }
+            await manager.broadcast(payload)
+            print(f"[BG] Broadcast agent crisis: {result['detected_crisis'].get('type')} @ {loc}")
+        except Exception as e:
+            print(f"[BG] Agent signal loop error (non-fatal): {e}")
+        await asyncio.sleep(90)
+
+@asynccontextmanager
+async def lifespan(app_instance):
+    task = asyncio.create_task(_agent_signal_loop())
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
 app = FastAPI(
     title="CIRO — Crisis Intelligence & Response Orchestrator",
     description=(
@@ -60,6 +122,7 @@ app = FastAPI(
         "Sensor → Analyst → Coordinator → Simulator."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ------------------------------------------------------------------ #
