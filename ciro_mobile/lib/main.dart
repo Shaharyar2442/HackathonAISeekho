@@ -13,7 +13,6 @@ import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'api_service.dart';
 import 'metrics_screen.dart';
 
@@ -23,11 +22,6 @@ void main() async {
     await dotenv.load(fileName: ".env");
   } catch (e) {
     print("Error loading .env in main: $e");
-  }
-  try {
-    await Firebase.initializeApp();
-  } catch (e) {
-    print("Error initializing Firebase: $e");
   }
   runApp(
     ChangeNotifierProvider(
