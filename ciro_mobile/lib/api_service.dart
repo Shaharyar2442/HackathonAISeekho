@@ -64,52 +64,11 @@ class ApiService {
     locallyReportedSignals.insert(0, Map<String, dynamic>.from(signalData));
     _notifySignals();
 
-    // Build sensor-specific reading text based on crisis type
-    String sensorReading = 'abnormal readings';
-    final typeLower = backendType.toLowerCase();
-    if (typeLower.contains('flood')) {
-      sensorReading = 'elevated water level';
-    } else if (typeLower.contains('fire')) {
-      sensorReading = 'heat signature anomaly';
-    } else if (typeLower.contains('power')) {
-      sensorReading = 'grid fluctuation detected';
-    } else if (typeLower.contains('accident')) {
-      sensorReading = 'traffic flow anomaly';
-    } else if (typeLower.contains('traffic')) {
-      sensorReading = 'severe congestion pattern';
-    }
+    // Send only the primary signal — reduces Gemini token usage and avoids rate limits.
+    // The Sensor Agent can normalise a single clear report effectively.
+    final signals = [signalData];
 
-    // Send 3 multi-source signals for richer AI analysis
-    final signals = [
-      signalData,
-      {
-        'text': '$backendType situation reported near $location — multiple citizens confirming',
-        'location': location,
-        'crisis_type': backendType,
-        'source': 'social_media',
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-      {
-        'text': 'Automated sensors detecting $sensorReading in $location sector',
-        'location': location,
-        'crisis_type': backendType,
-        'source': 'sensor',
-        'timestamp': DateTime.now().toIso8601String(),
-      },
-    ];
-
-    // 1. Ingest Signal
-    final ingestRes = await http.post(
-      Uri.parse('$baseUrl/ingest'),
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'signals': signals}),
-    );
-
-    if (ingestRes.statusCode != 200 && ingestRes.statusCode != 201) {
-      throw Exception('Failed to ingest signal (Status: ${ingestRes.statusCode})');
-    }
-
-    // 2. Detect Crisis & Get Agent Trace
+    // Detect Crisis & Get Agent Trace (ingest is redundant — detect processes directly)
     final detectRes = await http.post(
       Uri.parse('$baseUrl/detect'),
       headers: {'Content-Type': 'application/json'},
