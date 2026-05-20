@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'firestore_service.dart';
 
 class ApiService {
   static String get baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://10.188.25.60:8000/api';
@@ -64,6 +65,21 @@ class ApiService {
     locallyReportedSignals.insert(0, Map<String, dynamic>.from(signalData));
     _notifySignals();
 
+    // Save to Firestore immediately (pre-analysis, severity = null)
+    String? firestoreId;
+    try {
+      firestoreId = await FirestoreService.saveUserReport(
+        text: text,
+        location: location,
+        crisisType: backendType,
+        lat: lat,
+        lng: lng,
+      );
+      if (firestoreId != null) {
+        locallyReportedSignals.first['firestoreId'] = firestoreId;
+      }
+    } catch (_) {}
+
     // Send only the primary signal — reduces Gemini token usage and avoids rate limits.
     // The Sensor Agent can normalise a single clear report effectively.
     final signals = [signalData];
@@ -92,10 +108,44 @@ class ApiService {
         locallyReportedSignals[idx]['agentTrace'] = data['agent_trace'] ?? [];
         locallyReportedSignals[idx]['severity'] = detectedCrisis['severity'];
         _notifySignals();
+
+        // Update Firestore with the analysis results
+        final firestoreId = locallyReportedSignals[idx]['firestoreId'];
+        if (firestoreId != null) {
+          FirestoreService.updateCrisisWithAnalysis(
+            docId: firestoreId,
+            detectedCrisis: detectedCrisis,
+            actions: data['actions_recommended'] ?? [],
+            agentTrace: data['agent_trace'] ?? [],
+          );
+        }
       }
     }
 
     return data as Map<String, dynamic>;
+  }
+
+  static void reduceSeverity(String location) {
+    bool changed = false;
+    for (final list in [locallyReportedSignals, liveSignals]) {
+      for (final s in list) {
+        if (s['location'] == location) {
+          final cur = (s['severity'] as num?)?.toInt() ?? 1;
+          if (cur > 1) {
+            final newSeverity = cur - 1;
+            s['severity'] = newSeverity;
+            // Also update full_crisis if present
+            if (s['full_crisis'] != null) {
+              (s['full_crisis'] as Map<String, dynamic>)['severity'] = newSeverity;
+            }
+            changed = true;
+            // Update Firestore
+            FirestoreService.updateSeverity(location, newSeverity);
+          }
+        }
+      }
+    }
+    if (changed) _notifySignals();
   }
 
   static Future<Map<String, dynamic>> simulateAction(String actionType, String actionId) async {
