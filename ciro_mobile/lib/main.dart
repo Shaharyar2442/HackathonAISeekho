@@ -572,7 +572,6 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   WebSocketChannel? _channel;
-  final List<Map<String, dynamic>> _liveSignals = [];
   bool _wsConnected = false;
   bool _locationGranted = false;
   
@@ -738,7 +737,8 @@ class _MapScreenState extends State<MapScreen> {
           });
 
           setState(() {
-            _liveSignals.insert(0, data);
+            ApiService.liveSignals.insert(0, data);
+            ApiService.signalsChanged.value++;
           });
         }
       }, onError: (e) {
@@ -781,7 +781,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Set<Marker> _buildMarkers() {
-    final allSignals = [...ApiService.locallyReportedSignals, ..._liveSignals];
+    final allSignals = [...ApiService.locallyReportedSignals, ...ApiService.liveSignals];
     return allSignals.map((signal) {
       // 1. Try pre-computed LatLng (set by WebSocket listener)
       LatLng? latLng = signal['computed_latlng'] as LatLng?;
@@ -847,7 +847,7 @@ class _MapScreenState extends State<MapScreen> {
                     markers: _buildMarkers(),
                   ),
                 ),
-                if (_liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
+                if (ApiService.liveSignals.isNotEmpty || ApiService.locallyReportedSignals.isNotEmpty)
                   Positioned(
                     top: 16,
                     left: 16,
@@ -880,7 +880,7 @@ class _MapScreenState extends State<MapScreen> {
                                 controller: _feedScrollController,
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [...ApiService.locallyReportedSignals, ..._liveSignals].map((s) {
+                                  children: [...ApiService.locallyReportedSignals, ...ApiService.liveSignals].map((s) {
                                     final severity = s['severity'];
                                     final severityLabel = severity != null
                                         ? _severityLabel(severity as int)
@@ -1081,6 +1081,7 @@ class ResponseScreen extends StatelessWidget {
                       priorityText: 'P$p',
                       priorityColor: p == 1 ? Colors.red : (p == 2 ? Colors.orange : Colors.green),
                       icon: p == 1 ? Icons.alt_route : (p == 2 ? Icons.emergency : Icons.notifications_active_outlined),
+                      crisisLocation: crisis['location'] as String? ?? 'Unknown',
                     ),
                   );
                 }),
@@ -1298,6 +1299,7 @@ class ResponseScreen extends StatelessWidget {
     required String priorityText,
     required MaterialColor priorityColor,
     required IconData icon,
+    required String crisisLocation,
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -1340,8 +1342,9 @@ class ResponseScreen extends StatelessWidget {
                 Navigator.pushNamed(context, '/simulate', arguments: {
                   'id': actionId,
                   'type': actionType,
-                  'title': title, 
-                  'priorityText': priorityText
+                  'title': title,
+                  'priorityText': priorityText,
+                  'crisisLocation': crisisLocation,
                 });
               },
               child: const Text('Simulate Action'),
@@ -1379,11 +1382,12 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
       final String actionTitle = args?['title'] ?? 'Unknown Action';
       final String actionId = args?['id'] ?? 'act_123';
       final String actionType = args?['type'] ?? 'Unknown Action';
-      _startSimulation(actionTitle, actionId, actionType);
+      final String crisisLocation = args?['crisisLocation'] ?? '';
+      _startSimulation(actionTitle, actionId, actionType, crisisLocation);
     }
   }
 
-  void _startSimulation(String actionTitle, String actionId, String actionType) async {
+  void _startSimulation(String actionTitle, String actionId, String actionType, String crisisLocation) async {
     try {
       setState(() {
         _logs.add('[Simulator] Connecting to Backend Simulator...');
@@ -1435,6 +1439,10 @@ class _ActionSimulationScreenState extends State<ActionSimulationScreen> {
           if (event['result'] != null) {
             _result = event['result'] as Map<String, dynamic>;
             _isComplete = true;
+            // Reduce severity for this incident on the live map
+            if (crisisLocation.isNotEmpty) {
+              ApiService.reduceSeverity(crisisLocation);
+            }
           }
         });
       });
