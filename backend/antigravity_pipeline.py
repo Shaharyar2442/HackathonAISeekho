@@ -540,6 +540,7 @@ class CIROPipeline:
         response = await asyncio.to_thread(chat.send_message, prompt)
         
         # Step 2: If the model called tools, execute them and send results back
+        actual_tool_results = []
         if response.function_calls:
             function_responses = []
             for function_call in response.function_calls:
@@ -548,6 +549,7 @@ class CIROPipeline:
                     location = function_call.args.get("location", "")
                     # Execute our actual Python function
                     result_dict = calculate_simulation_metrics(action_type, location)
+                    actual_tool_results.append(result_dict)
                     
                     function_responses.append(
                         types.Part.from_function_response(
@@ -571,10 +573,15 @@ class CIROPipeline:
         
         output: SimulatorAgentOutput = final_response.parsed
         
-        # We need to map the action IDs back properly, since the model might hallucinate them
+        # We need to map the action IDs back properly and inject the real states
         if len(output.results) == len(actions):
             for i, res in enumerate(output.results):
                 res.action_id = actions[i].id
+                if i < len(actual_tool_results):
+                    res.before_state = actual_tool_results[i].get("before_state", {})
+                    res.after_state = actual_tool_results[i].get("after_state", {})
+                    # Ensure execution_log is exactly what the tool provided
+                    res.execution_log = actual_tool_results[i].get("execution_log", [])
         
         self.agent_trace.append(
             AgentMessage(

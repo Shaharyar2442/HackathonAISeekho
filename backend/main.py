@@ -279,6 +279,12 @@ async def reduce_severity(request: ReduceSeverityRequest):
     try:
         db = get_db()
         success = await update_crisis_severity(db, request.location, request.new_severity)
+        if success:
+            await manager.broadcast({
+                "type": "severity_update",
+                "location": request.location,
+                "new_severity": request.new_severity
+            })
         return {"status": "success" if success else "not_found"}
     except Exception as e:
         print(f"Error reducing severity: {e}")
