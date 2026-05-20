@@ -278,7 +278,16 @@ class CIROPipeline:
     def __init__(self):
         self.agent_trace: list[AgentMessage] = []
         settings = get_settings()
-        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        
+        vertex_project = os.environ.get("GEMINI_VERTEX_PROJECT")
+        if vertex_project:
+            self.client = genai.Client(
+                vertexai=True,
+                project=vertex_project,
+                location=os.environ.get("GEMINI_VERTEX_LOCATION", "asia-south1")
+            )
+        else:
+            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
         self.model_name = "gemini-2.5-flash"
 
     async def execute(self, raw_signals: list[dict]) -> dict:
